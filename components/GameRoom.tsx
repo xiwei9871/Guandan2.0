@@ -4,8 +4,9 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/constants';
-import { Player, RoomState } from '@/lib/types';
+import { Player, RoomState, Card } from '@/lib/types';
 import PlayerCard from './game/PlayerCard';
+import HandCards from './game/HandCards';
 
 interface GameRoomProps {
   roomId: string;
@@ -113,6 +114,30 @@ export default function GameRoom({ roomId }: GameRoomProps) {
         setRoomState(response.roomState);
       } else {
         setError(response.error || '开始游戏失败');
+      }
+    });
+  };
+
+  const handlePlayCards = (cards: Card[]) => {
+    if (!socket || !playerId) return;
+
+    socket.emit(SOCKET_EVENTS.CLIENT.PLAY_CARDS, { roomId, playerId, cards }, (response: { success: boolean; roomState?: RoomState; error?: string }) => {
+      if (response.success && response.roomState) {
+        setRoomState(response.roomState);
+      } else {
+        setError(response.error || '出牌失败');
+      }
+    });
+  };
+
+  const handlePass = () => {
+    if (!socket || !playerId) return;
+
+    socket.emit(SOCKET_EVENTS.CLIENT.PASS_TURN, { roomId, playerId }, (response: { success: boolean; roomState?: RoomState; error?: string }) => {
+      if (response.success && response.roomState) {
+        setRoomState(response.roomState);
+      } else {
+        setError(response.error || '跳过失败');
       }
     });
   };
@@ -321,6 +346,20 @@ export default function GameRoom({ roomId }: GameRoomProps) {
             <p className="text-center text-blue-800">
               等待更多玩家加入... ({roomState.players.length}/4)
             </p>
+          </div>
+        )}
+
+        {/* Hand Cards */}
+        {roomState.gamePhase === 'playing' && currentPlayer && currentPlayer.hand && (
+          <div className="mt-6">
+            <HandCards
+              cards={currentPlayer.hand}
+              currentLevel={roomState.currentLevel}
+              onPlayCards={handlePlayCards}
+              onPass={handlePass}
+              isCurrentTurn={isCurrentPlayerTurn}
+              canPlay={!roomState.lastPlay || roomState.lastPlayPlayer !== roomState.players.findIndex(p => p.id === playerId)}
+            />
           </div>
         )}
       </div>

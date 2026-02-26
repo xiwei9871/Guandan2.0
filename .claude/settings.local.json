@@ -10,7 +10,14 @@
       "Bash(npm run:*)",
       "Bash(curl:*)",
       "Bash(pkill:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(cd:*)",
+      "Bash(cd /c/Users/42599/guandan_Game2.0 && npx tsc --noEmit lib/types.ts lib/constants.ts 2>&1)",
+      "Bash(true:*)",
+      "Bash(head:*)",
+      "Bash(cd /c/Users/42599/guandan_Game2.0 && npx tsc --noEmit lib/game/cardChecker.ts lib/game/testUtils.ts 2>&1)",
+      "Bash(tail:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }

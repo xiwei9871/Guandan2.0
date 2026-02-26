@@ -16,6 +16,9 @@ interface ServerToClientEvents {
   [SOCKET_EVENTS.SERVER.PLAYER_JOINED]: (player: Player) => void;
   [SOCKET_EVENTS.SERVER.PLAYER_LEFT]: (playerId: string) => void;
   [SOCKET_EVENTS.SERVER.GAME_STATE_CHANGED]: (gameState: RoomState) => void;
+  [SOCKET_EVENTS.SERVER.PLAYER_PLAYED]: (data: { playerId: string; cards: Card[]; playerIndex: number }) => void;
+  [SOCKET_EVENTS.SERVER.TURN_CHANGED]: (data: { previousPlayer: number; nextPlayer: number }) => void;
+  [SOCKET_EVENTS.SERVER.ROUND_ENDED]: (data: { winner: 'red' | 'blue'; redScore: number; blueScore: number }) => void;
   [SOCKET_EVENTS.SERVER.ERROR]: (message: string) => void;
 }
 
