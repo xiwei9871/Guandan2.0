@@ -97,8 +97,8 @@ test.describe('完整游戏流程测试', () => {
     };
 
     // Stuck detection
-    let stuckCount = 0;
-    let lastPlayCount = 0;
+    let consecutivePasses = 0; // 连续过牌次数
+    let lastPlayerWhoPlayed = 0; // 最后一个出牌的玩家
 
     // 辅助函数：获取手牌数量
     async function getHandCount(page: any): Promise<number> {
@@ -115,22 +115,17 @@ test.describe('完整游戏流程测试', () => {
       round++;
       stats.totalRounds = round;
 
-      // 检查是否卡住
-      if (stats.playCount === lastPlayCount) {
-        stuckCount++;
-      } else {
-        stuckCount = 0;
-        lastPlayCount = stats.playCount;
-      }
-
-      // 如果连续5轮无法出牌，强制跳过
-      if (stuckCount > 5) {
-        console.log('检测到游戏卡住，强制结束');
-        break;
+      // 如果连续3个玩家过牌，新的一轮开始，从最后出牌的玩家开始
+      let startPlayer = 0;
+      if (consecutivePasses >= 3) {
+        startPlayer = lastPlayerWhoPlayed;
+        consecutivePasses = 0;
+        console.log(`\n--- 新一轮开始，从 ${PLAYERS[startPlayer].name} 出牌 ---\n`);
       }
 
       // 轮流处理每个玩家
-      for (let playerIndex = 0; playerIndex < 4; playerIndex++) {
+      for (let i = 0; i < 4; i++) {
+        const playerIndex = (startPlayer + i) % 4;
         const bot = bots[playerIndex];
 
         // 尝试让玩家出牌/过牌
@@ -138,10 +133,16 @@ test.describe('完整游戏流程测试', () => {
 
         if (result.played) {
           stats.playCount++;
+          consecutivePasses = 0; // 重置连续过牌计数
+          lastPlayerWhoPlayed = playerIndex;
           console.log(`第${round}轮: ${PLAYERS[playerIndex].name} 出牌`);
         } else if (result.passed) {
           stats.passCount++;
-          console.log(`第${round}轮: ${PLAYERS[playerIndex].name} 过牌`);
+          consecutivePasses++;
+          console.log(`第${round}轮: ${PLAYERS[playerIndex].name} 过牌 (连续${consecutivePasses}次)`);
+        } else {
+          // 既没出牌也没过牌（不是该玩家的回合）
+          console.log(`第${round}轮: ${PLAYERS[playerIndex].name} 跳过 (不是回合)`);
         }
 
         // 检查这个玩家是否出完牌
@@ -156,6 +157,8 @@ test.describe('完整游戏流程测试', () => {
         // 等待其他玩家更新
         await pages[0].waitForTimeout(300);
       }
+
+      if (gameEnded) break;
 
       if (round % 10 === 0) {
         console.log(`--- 已进行 ${round} 轮 ---`);

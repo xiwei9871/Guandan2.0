@@ -85,22 +85,23 @@ function getStraightPlays(cards: Card[]): CardPlayOption[] {
     .filter(r => r <= 13) // 不能包含2和王
     .sort((a, b) => a - b);
 
-  // 查找连续的rank序列
-  for (let start = 0; start < sortedRanks.length; start++) {
-    for (let length = 5; length <= sortedRanks.length - start; length++) {
-      const sequence = sortedRanks.slice(start, start + length);
-      if (isConsecutive(sequence)) {
-        const straightCards: Card[] = [];
-        for (const rank of sequence) {
-          straightCards.push(rankMap.get(rank)![0]); // 取每种rank的一张
-        }
-        plays.push({
-          type: CardType.STRAIGHT,
-          cards: straightCards,
-          mainRank: sequence[sequence.length - 1],
-          description: `顺子 ${sequence[0]}-${sequence[sequence.length - 1]}`
-        });
+  // 查找连续的5张rank序列
+  // 掼蛋规则：顺子只能是5张，不是更多也不是更少
+  const STRAIGHT_LENGTH = 5;
+
+  for (let start = 0; start <= sortedRanks.length - STRAIGHT_LENGTH; start++) {
+    const sequence = sortedRanks.slice(start, start + STRAIGHT_LENGTH);
+    if (isConsecutive(sequence)) {
+      const straightCards: Card[] = [];
+      for (const rank of sequence) {
+        straightCards.push(rankMap.get(rank)![0]); // 取每种rank的一张
       }
+      plays.push({
+        type: CardType.STRAIGHT,
+        cards: straightCards,
+        mainRank: sequence[sequence.length - 1],
+        description: `顺子 ${sequence[0]}-${sequence[sequence.length - 1]}`
+      });
     }
   }
   return plays;

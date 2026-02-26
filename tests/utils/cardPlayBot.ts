@@ -54,20 +54,19 @@ export class CardPlayBot {
       const bodyText = document.body.innerText;
 
       // 检查是否是当前玩家的回合
-      const isMyTurn = bodyText.includes('轮到你出牌');
+      // 更精确的判断：如果有"等待其他玩家出牌"则不是自己的回合
+      const isWaiting = bodyText.includes('等待其他玩家出牌');
+      const isMyTurn = bodyText.includes('轮到你出牌') && !isWaiting;
 
-      // 尝试获取上家出牌信息
-      const lastPlayElement = document.querySelector('[class*="last-play"]');
+      // 尝试获取上家出牌信息 - 从页面文本中提取
       let lastPlay = null;
-      if (lastPlayElement) {
-        const text = lastPlayElement.textContent || '';
-        const cardCount = text.match(/(\d+)\s*张牌/);
-        if (cardCount) {
-          lastPlay = {
-            cardsCount: parseInt(cardCount[1]),
-            // 这里可以扩展更多细节
-          };
-        }
+      const lastPlayMatch = bodyText.match(/(\w+)\s*出牌\s*(\d+)\s*张牌/);
+      if (lastPlayMatch) {
+        lastPlay = {
+          playerName: lastPlayMatch[1],
+          cardsCount: parseInt(lastPlayMatch[2]),
+          type: 'unknown'
+        };
       }
 
       return {
