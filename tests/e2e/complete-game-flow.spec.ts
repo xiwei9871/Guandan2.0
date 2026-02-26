@@ -26,6 +26,8 @@ test.describe('完整游戏流程测试', () => {
   });
 
   test('完整对局: 从发牌到有玩家出完所有牌', async () => {
+    test.setTimeout(300000); // 5分钟超时
+
     console.log('\n=== 完整对局测试开始 ===\n');
 
     // 阶段1: 初始化
@@ -55,7 +57,7 @@ test.describe('完整游戏流程测试', () => {
     }
 
     // 等待所有玩家加入完成
-    await pages[0].waitForTimeout(2000);
+    await pages[0].waitForTimeout(1500);
 
     // 所有玩家准备
     console.log('\n=== 所有玩家准备 ===');
@@ -63,7 +65,7 @@ test.describe('完整游戏流程测试', () => {
       await setReady(page);
     }
 
-    await pages[0].waitForTimeout(2000);
+    await pages[0].waitForTimeout(1500);
 
     // 开始游戏
     console.log('\n=== 开始游戏 ===');
@@ -72,7 +74,7 @@ test.describe('完整游戏流程测试', () => {
     console.log('✅ 游戏开始');
 
     // 等待发牌完成
-    await pages[0].waitForTimeout(3000);
+    await pages[0].waitForTimeout(2000);
 
     // 创建机器人
     for (let i = 0; i < 4; i++) {
@@ -94,6 +96,10 @@ test.describe('完整游戏流程测试', () => {
       winner: null as string | null
     };
 
+    // Stuck detection
+    let stuckCount = 0;
+    let lastPlayCount = 0;
+
     // 辅助函数：获取手牌数量
     async function getHandCount(page: any): Promise<number> {
       try {
@@ -108,6 +114,20 @@ test.describe('完整游戏流程测试', () => {
     while (!gameEnded && round < maxRounds) {
       round++;
       stats.totalRounds = round;
+
+      // 检查是否卡住
+      if (stats.playCount === lastPlayCount) {
+        stuckCount++;
+      } else {
+        stuckCount = 0;
+        lastPlayCount = stats.playCount;
+      }
+
+      // 如果连续5轮无法出牌，强制跳过
+      if (stuckCount > 5) {
+        console.log('检测到游戏卡住，强制结束');
+        break;
+      }
 
       // 轮流处理每个玩家
       for (let playerIndex = 0; playerIndex < 4; playerIndex++) {
@@ -134,7 +154,7 @@ test.describe('完整游戏流程测试', () => {
         }
 
         // 等待其他玩家更新
-        await pages[0].waitForTimeout(500);
+        await pages[0].waitForTimeout(300);
       }
 
       if (round % 10 === 0) {

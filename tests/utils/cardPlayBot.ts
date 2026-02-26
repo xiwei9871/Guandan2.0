@@ -150,6 +150,8 @@ export class CardPlayBot {
       // 获取合法出牌
       const validPlays = cardSelector.getValidPlays(hand, gameState.lastPlay, currentLevel);
 
+      console.log(`${this.playerName} 手牌数量: ${hand.length}, 合法出牌数: ${validPlays.length}`);
+
       // 决定是否过牌
       const isFirstPlay = !gameState.lastPlay;
       if (cardSelector.shouldPass(validPlays, isFirstPlay)) {
