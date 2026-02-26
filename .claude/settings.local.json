@@ -17,7 +17,8 @@
       "Bash(head:*)",
       "Bash(cd /c/Users/42599/guandan_Game2.0 && npx tsc --noEmit lib/game/cardChecker.ts lib/game/testUtils.ts 2>&1)",
       "Bash(tail:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(netstat:*)"
     ]
   }
 }
