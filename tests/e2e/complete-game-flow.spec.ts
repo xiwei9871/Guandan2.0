@@ -26,7 +26,7 @@ test.describe('完整游戏流程测试', () => {
   });
 
   test('完整对局: 从发牌到有玩家出完所有牌', async () => {
-    test.setTimeout(300000); // 5分钟超时
+    test.setTimeout(60000); // 1分钟超时
 
     console.log('\n=== 完整对局测试开始 ===\n');
 
