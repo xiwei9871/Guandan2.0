@@ -108,22 +108,31 @@ export class CardPlayBot {
       }
 
       // 选择要出的牌
+      // 使用Map来跟踪每种牌的选择次数，避免重复选择同一张牌
+      const cardSelectionCount = new Map<string, number>();
+
       for (const card of cards) {
         const suitSymbol = { spades: '♠', hearts: '♥', clubs: '♣', diamonds: '♦' }[card.suit];
         const rankDisplay = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[card.rank] || card.rank;
+        const cardKey = `${suitSymbol}${rankDisplay}`;
 
-        // 查找包含对应花色和rank的按钮
-        // 更精确的选择器：查找同时包含花色和rank的按钮
-        const cardButton = this.page.locator('button').filter({ hasText: suitSymbol }).filter({ hasText: String(rankDisplay) }).first();
+        // 获取这种牌已经选择了多少次
+        const selectionIndex = cardSelectionCount.get(cardKey) || 0;
+        cardSelectionCount.set(cardKey, selectionIndex + 1);
 
-        const count = await cardButton.count();
-        console.log(`${this.playerName} 查找牌 ${suitSymbol}${rankDisplay}, 找到 ${count} 个按钮`);
+        // 查找所有匹配的按钮，然后选择第n个未被选中的
+        const allCardButtons = this.page.locator('button').filter({ hasText: suitSymbol }).filter({ hasText: String(rankDisplay) });
+        const count = await allCardButtons.count();
 
-        if (count > 0) {
+        console.log(`${this.playerName} 查找牌 ${cardKey}, 找到 ${count} 个按钮，选择第 ${selectionIndex + 1} 个`);
+
+        if (count > selectionIndex) {
+          // 找到第selectionIndex个按钮（0-based index）
+          const cardButton = allCardButtons.nth(selectionIndex);
           await cardButton.click();
           await this.page.waitForTimeout(100);
         } else {
-          console.error(`${this.playerName} 未找到牌 ${suitSymbol}${rankDisplay}`);
+          console.error(`${this.playerName} 未找到足够的牌 ${cardKey}，需要第 ${selectionIndex + 1} 个，只有 ${count} 个`);
           return false;
         }
       }
