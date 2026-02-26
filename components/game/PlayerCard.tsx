@@ -21,22 +21,23 @@ export default function PlayerCard({ player, isCurrentTurn, isSelf }: PlayerCard
   return (
     <div
       className={`
-        relative p-4 rounded-lg border-2 transition-all duration-300
+        relative p-2 sm:p-4 rounded-lg border-2 transition-all duration-300
         ${teamBgColor}
-        ${isCurrentTurn ? 'ring-4 ring-yellow-400 ring-opacity-75 scale-105 shadow-lg' : ''}
+        ${isCurrentTurn ? 'ring-2 sm:ring-4 ring-yellow-400 ring-opacity-75 scale-105 shadow-lg' : ''}
         ${isSelf ? 'shadow-md' : ''}
       `}
     >
       {/* Turn Indicator */}
       {isCurrentTurn && (
-        <div className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center shadow-md animate-pulse">
-          <span className="text-xs font-bold text-yellow-900">出牌</span>
+        <div className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 w-6 h-6 sm:w-8 sm:h-8 bg-yellow-400 rounded-full flex items-center justify-center shadow-md animate-pulse">
+          <span className="text-xs font-bold text-yellow-900 hidden sm:inline">出牌</span>
+          <span className="text-xs font-bold text-yellow-900 sm:hidden">!</span>
         </div>
       )}
 
       {/* Self Indicator */}
       {isSelf && (
-        <div className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
+        <div className="absolute -top-1.5 -left-1.5 sm:-top-2 sm:-left-2 w-5 h-5 sm:w-6 sm:h-6 bg-green-500 rounded-full flex items-center justify-center shadow-md">
           <span className="text-xs font-bold text-white">我</span>
         </div>
       )}

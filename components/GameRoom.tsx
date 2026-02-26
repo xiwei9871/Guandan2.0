@@ -124,8 +124,10 @@ export default function GameRoom({ roomId }: GameRoomProps) {
     socket.emit(SOCKET_EVENTS.CLIENT.PLAY_CARDS, { roomId, playerId, cards }, (response: { success: boolean; roomState?: RoomState; error?: string }) => {
       if (response.success && response.roomState) {
         setRoomState(response.roomState);
+        setError(''); // Clear error on success
       } else {
         setError(response.error || '出牌失败');
+        setTimeout(() => setError(''), 3000); // Auto-clear error after 3 seconds
       }
     });
   };
@@ -136,8 +138,10 @@ export default function GameRoom({ roomId }: GameRoomProps) {
     socket.emit(SOCKET_EVENTS.CLIENT.PASS_TURN, { roomId, playerId }, (response: { success: boolean; roomState?: RoomState; error?: string }) => {
       if (response.success && response.roomState) {
         setRoomState(response.roomState);
+        setError(''); // Clear error on success
       } else {
         setError(response.error || '跳过失败');
+        setTimeout(() => setError(''), 3000); // Auto-clear error after 3 seconds
       }
     });
   };
