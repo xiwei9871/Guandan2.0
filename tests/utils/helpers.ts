@@ -3,23 +3,22 @@ import { TIMEOUTS } from '../fixtures/game-data';
 
 // 等待 Socket 连接成功
 export async function waitForSocketConnected(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () => {
-      const logs: string[] = [];
-      // 检查控制台是否有 "Connected to server" 日志
-      return logs.some(log => log.includes('Connected to server'));
-    },
-    { timeout: TIMEOUTS.SOCKET_CONNECT }
-  );
+  // 等待连接状态指示器变为绿色（已连接）
+  await page.waitForSelector('text=已连接到服务器', { timeout: TIMEOUTS.SOCKET_CONNECT });
+  // 额外等待确保 Socket.io 完全初始化
+  await page.waitForTimeout(500);
 }
 
 // 创建房间并返回房间号
 export async function createRoom(page: Page, playerName: string): Promise<string> {
+  // 等待 Socket 连接
+  await waitForSocketConnected(page);
+
   // 填写玩家名称
   await page.fill('#playerName', playerName);
 
-  // 点击创建房间
-  await page.click('button[type="submit"]');
+  // 点击创建房间按钮（第一个提交按钮）
+  await page.locator('button[type="submit"]').first().click();
 
   // 等待跳转到房间页面
   await page.waitForURL(/\/room\/[A-Z0-9]{6}/, { timeout: TIMEOUTS.ROOM_CREATE });
@@ -37,6 +36,9 @@ export async function createRoom(page: Page, playerName: string): Promise<string
 
 // 加入房间
 export async function joinRoom(page: Page, roomId: string, playerName: string): Promise<void> {
+  // 等待 Socket 连接
+  await waitForSocketConnected(page);
+
   // 填写玩家名称
   await page.fill('#playerName', playerName);
 
