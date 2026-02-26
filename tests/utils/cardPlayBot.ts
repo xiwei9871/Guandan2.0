@@ -101,34 +101,49 @@ export class CardPlayBot {
       console.log(`${this.playerName} 开始出牌，选择 ${cards.length} 张牌`);
 
       // 先清除已选择的牌
-      const selectedCards = await this.page.locator('button.border-blue-500').count();
-      if (selectedCards > 0) {
-        const clearButton = this.page.locator('button:has-text("清除")');
-        if (await clearButton.count() > 0) {
-          await clearButton.click();
-          await this.page.waitForTimeout(200);
-        }
+      const clearButton = this.page.locator('button:has-text("清除")');
+      if (await clearButton.count() > 0) {
+        await clearButton.click();
+        await this.page.waitForTimeout(200);
       }
 
-      // 选择要出的牌（通过rank和suit匹配）
+      // 选择要出的牌
       for (const card of cards) {
         const suitSymbol = { spades: '♠', hearts: '♥', clubs: '♣', diamonds: '♦' }[card.suit];
         const rankDisplay = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[card.rank] || card.rank;
 
         // 查找包含对应花色和rank的按钮
-        const cardButton = this.page.locator('button', { hasText: suitSymbol }).filter({ hasText: String(rankDisplay) }).first();
+        // 更精确的选择器：查找同时包含花色和rank的按钮
+        const cardButton = this.page.locator('button').filter({ hasText: suitSymbol }).filter({ hasText: String(rankDisplay) }).first();
 
-        if (await cardButton.count() > 0) {
+        const count = await cardButton.count();
+        console.log(`${this.playerName} 查找牌 ${suitSymbol}${rankDisplay}, 找到 ${count} 个按钮`);
+
+        if (count > 0) {
           await cardButton.click();
-          await this.page.waitForTimeout(50); // 减少等待时间
+          await this.page.waitForTimeout(100);
+        } else {
+          console.error(`${this.playerName} 未找到牌 ${suitSymbol}${rankDisplay}`);
+          return false;
         }
+      }
+
+      // 验证是否选中了牌
+      const selectedCount = await this.page.locator('button.border-blue-500').count();
+      console.log(`${this.playerName} 已选中 ${selectedCount} 张牌`);
+
+      if (selectedCount !== cards.length) {
+        console.error(`${this.playerName} 牌选择失败，期望 ${cards.length} 张，实际选中 ${selectedCount} 张`);
+        // 清除选择
+        await clearButton.click();
+        return false;
       }
 
       // 点击出牌按钮
       const playButton = this.page.locator('button:has-text("出牌")');
       await playButton.click();
 
-      await this.page.waitForTimeout(500); // 减少等待服务器响应时间
+      await this.page.waitForTimeout(500);
       console.log(`${this.playerName} 出牌完成`);
       return true;
     } catch (error) {
