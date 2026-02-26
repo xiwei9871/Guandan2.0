@@ -21,6 +21,23 @@ export default function GameRoom({ roomId }: GameRoomProps) {
   const router = useRouter();
   const { socket, isConnected } = useSocket(roomId);
 
+  // Add default values to prevent undefined errors
+  const safeRoomState = roomState || {
+    id: roomId,
+    name: '',
+    maxPlayers: 4,
+    status: 'waiting',
+    gameState: null,
+    createdAt: Date.now(),
+    players: [],
+    gamePhase: 'waiting',
+    currentLevel: 2,
+    currentTurn: 0,
+    scores: { red: 0, blue: 0 },
+    lastPlay: null,
+    lastPlayPlayer: null,
+  };
+
   useEffect(() => {
     if (!socket) return;
 
@@ -146,9 +163,9 @@ export default function GameRoom({ roomId }: GameRoomProps) {
     });
   };
 
-  const isCurrentPlayerTurn = roomState && playerId ? roomState.currentTurn === roomState.players.findIndex(p => p.id === playerId) : false;
-  const canStartGame = roomState && roomState.players.length === 4 && roomState.players.every(p => p.isReady);
-  const currentPlayer = roomState?.players.find(p => p.id === playerId);
+  const isCurrentPlayerTurn = safeRoomState.players && playerId ? safeRoomState.currentTurn === safeRoomState.players.findIndex(p => p.id === playerId) : false;
+  const canStartGame = safeRoomState.players.length === 4 && safeRoomState.players.every(p => p.isReady);
+  const currentPlayer = safeRoomState.players.find(p => p.id === playerId);
 
   if (error && !roomState) {
     return (
@@ -272,10 +289,29 @@ export default function GameRoom({ roomId }: GameRoomProps) {
                 )}
                 {roomState.lastPlay && (
                   <div className="mt-4 p-3 bg-white rounded-lg shadow">
-                    <p className="text-sm text-gray-600 mb-1">
+                    <p className="text-sm text-gray-600 mb-2">
                       {roomState.players.find(p => p.id === roomState.lastPlay?.playerId)?.name} 出牌
                     </p>
-                    <p className="text-lg font-bold text-gray-800">{roomState.lastPlay.cards.length} 张牌</p>
+                    {/* 显示具体出的牌 */}
+                    <div className="flex flex-wrap gap-1 justify-start">
+                      {roomState.lastPlay.cards.map((card, index) => (
+                        <div
+                          key={card.id || index}
+                          className="w-10 h-14 rounded border-2 border-gray-300 bg-white flex flex-col items-center justify-center"
+                          title={`${card.suit} ${card.rank}`}
+                        >
+                          <span className="text-xs text-gray-800">{card.rank}</span>
+                          <span className="text-sm">
+                            {card.suit === 'spades' ? '♠' :
+                             card.suit === 'hearts' ? '♥' :
+                             card.suit === 'clubs' ? '♣' : '♦'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      {roomState.lastPlay.cards.length} 张牌 · {roomState.lastPlay.type}
+                    </p>
                   </div>
                 )}
               </div>

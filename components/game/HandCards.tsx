@@ -67,12 +67,24 @@ export default function HandCards({
     clearSelection();
   };
 
-  // Sort cards by suit and rank
+  // Sort cards: 大小王 → 级牌 → A-2 (从大到小)，相同点数按花色分组
   const sortedCards = [...cards].sort((a, b) => {
+    // 大王 (rank=14, suit=spades) 和 小王 (rank=14, suit=hearts) 排最前
+    if (a.rank === 14 && a.suit === 'spades') return -1; // 大王
+    if (b.rank === 14 && b.suit === 'spades') return 1;  // 大王
+    if (a.rank === 14 && a.suit === 'hearts') return -1; // 小王
+    if (b.rank === 14 && b.suit === 'hearts') return 1;  // 小王
+
+    // 级牌排第二
+    if (a.levelCard && !b.levelCard) return -1;
+    if (!a.levelCard && b.levelCard) return 1;
+
+    // 其他牌按rank从大到小排序
+    if (a.rank !== b.rank) return b.rank - a.rank;
+
+    // 相同rank按花色分组：♠ ♥ ♣ ♦
     const suitOrder = { spades: 0, hearts: 1, clubs: 2, diamonds: 3 };
-    const suitDiff = suitOrder[a.suit] - suitOrder[b.suit];
-    if (suitDiff !== 0) return suitDiff;
-    return b.rank - a.rank; // Higher rank first
+    return suitOrder[a.suit] - suitOrder[b.suit];
   });
 
   return (
@@ -86,10 +98,10 @@ export default function HandCards({
         </div>
       </div>
 
-      {/* Cards Container */}
-      <div className="mb-3 sm:mb-4 overflow-x-auto pb-2 -mx-2 px-2">
-        <div className="flex gap-1 sm:gap-2 min-w-max justify-start">
-          {sortedCards.map((card) => {
+      {/* Cards Container - 使用重叠样式 */}
+      <div className="mb-3 sm:mb-4">
+        <div className="flex flex-wrap justify-center gap-0 -ml-2">
+          {sortedCards.map((card, index) => {
             const selected = isCardSelected(card.id);
             return (
               <button
@@ -99,22 +111,37 @@ export default function HandCards({
                 className={`
                   relative w-12 h-16 sm:w-16 sm:h-24 rounded-lg border-2 transition-all duration-200 flex-shrink-0
                   ${selected
-                    ? 'border-blue-500 shadow-lg transform -translate-y-1 sm:-translate-y-2'
-                    : 'border-gray-300 hover:border-gray-400'
+                    ? 'border-blue-500 shadow-lg transform -translate-y-1 sm:-translate-y-2 z-10'
+                    : 'border-gray-300 hover:border-gray-400 hover:z-10'
                   }
                   ${!isCurrentTurn ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}
                   bg-white
+                  -ml-2 sm:-ml-3
                 `}
+                style={{ zIndex: selected ? 20 : 10 + index }}
               >
-                {/* Card Content */}
-                <div className={`flex flex-col items-center justify-center h-full ${suitColors[card.suit]}`}>
+                {/* Card Content - 左上角露出识别信息 */}
+                <div className="absolute top-0 left-0 w-full h-full p-1 flex flex-col">
+                  {/* 左上角小标识 - 用于识别牌 */}
+                  <div className="flex items-center gap-0.5">
+                    <span className={`text-xs font-bold ${suitColors[card.suit]}`}>
+                      {suitSymbols[card.suit]}
+                    </span>
+                    <span className="text-xs font-bold text-gray-800">
+                      {rankDisplay[card.rank] || card.rank}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 主体内容 - 被遮挡但可见轮廓 */}
+                <div className={`flex flex-col items-center justify-center h-full w-full ${suitColors[card.suit]}`}>
                   {/* Rank */}
-                  <div className="text-base sm:text-xl font-bold">
+                  <div className="text-base sm:text-xl font-bold opacity-30">
                     {rankDisplay[card.rank] || card.rank}
                   </div>
 
                   {/* Suit */}
-                  <div className="text-lg sm:text-2xl">
+                  <div className="text-lg sm:text-2xl opacity-30">
                     {suitSymbols[card.suit]}
                   </div>
 
