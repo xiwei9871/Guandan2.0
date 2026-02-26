@@ -39,7 +39,7 @@ app.prepare().then(() => {
     console.log(`Client connected: ${socket.id}`);
 
     // Create room
-    socket.on('room:create', ({ playerName }) => {
+    socket.on('room:create', ({ playerName }, callback) => {
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const player = {
         id: socket.id,
@@ -67,26 +67,42 @@ app.prepare().then(() => {
       socket.join(roomId);
 
       console.log(`Room created: ${roomId} by ${playerName}`);
+
+      // 发送 ACK 响应
+      if (callback && typeof callback === 'function') {
+        callback({ success: true, roomId });
+      }
+
+      // 广播房间更新事件
       socket.emit('room:updated', room);
     });
 
     // Join room
-    socket.on('room:join', ({ roomId, playerName }) => {
+    socket.on('room:join', ({ roomId, playerName }, callback) => {
       const room = rooms.get(roomId);
 
       if (!room) {
         socket.emit('error', '房间不存在');
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '房间不存在' });
+        }
         return;
       }
 
       if (room.status !== 'waiting') {
         socket.emit('error', '房间已开始游戏');
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '房间已开始游戏' });
+        }
         return;
       }
 
       const players = roomPlayers.get(roomId) || [];
       if (players.length >= room.maxPlayers) {
         socket.emit('error', '房间已满');
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '房间已满' });
+        }
         return;
       }
 
@@ -112,7 +128,18 @@ app.prepare().then(() => {
       socket.join(roomId);
 
       console.log(`${playerName} joined room ${roomId}`);
-      io.to(roomId).emit('room:playerJoined', player);
+
+      // 发送 ACK 响应
+      if (callback && typeof callback === 'function') {
+        callback({
+          success: true,
+          playerId: player.id,
+          roomState: room
+        });
+      }
+
+      // 广播事件 - 使用正确的数据格式
+      io.to(roomId).emit('room:playerJoined', { player, roomState: room });
       io.to(roomId).emit('room:updated', room);
     });
 
@@ -159,7 +186,8 @@ app.prepare().then(() => {
           roomPlayers.delete(roomId);
         } else {
           roomPlayers.set(roomId, filteredPlayers);
-          io.to(roomId).emit('room:playerLeft', player.id);
+          const updatedRoom = rooms.get(roomId);
+          io.to(roomId).emit('room:playerLeft', { playerId: player.id, roomState: updatedRoom });
         }
         console.log(`${player.name} left room ${roomId}`);
       }

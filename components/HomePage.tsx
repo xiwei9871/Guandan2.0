@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/constants';
@@ -13,6 +13,14 @@ export default function HomePage() {
 
   const router = useRouter();
   const { socket, isConnected } = useSocket();
+
+  // 添加调试信息
+  useEffect(() => {
+    console.log('=== HomePage Debug ===');
+    console.log('isConnected:', isConnected);
+    console.log('socket:', socket);
+    console.log('Socket URL:', typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3003` : 'N/A');
+  }, [isConnected, socket]);
 
   const handleCreateRoom = (e: FormEvent) => {
     e.preventDefault();

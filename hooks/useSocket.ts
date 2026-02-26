@@ -14,33 +14,37 @@ export function useSocket(roomId?: string) {
       ? `${window.location.protocol}//${window.location.hostname}:3003`
       : 'http://localhost:3003';
 
+    console.log('Connecting to Socket.io at:', url);
+
     const socketInstance = io(url, {
-      autoConnect: false,
+      autoConnect: true,
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     socketInstance.on('connect', () => {
-      console.log('Connected to server');
+      console.log('✅ Connected to server, socket ID:', socketInstance.id);
       setIsConnected(true);
     });
 
     socketInstance.on('disconnect', () => {
-      console.log('Disconnected from server');
+      console.log('❌ Disconnected from server');
       setIsConnected(false);
+    });
+
+    socketInstance.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error);
     });
 
     setSocket(socketInstance);
 
     return () => {
+      console.log('Cleaning up socket connection');
       socketInstance.disconnect();
     };
   }, []);
-
-  useEffect(() => {
-    if (socket && roomId) {
-      socket.connect();
-    }
-  }, [socket, roomId]);
 
   return { socket, isConnected };
 }
