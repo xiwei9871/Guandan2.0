@@ -9,8 +9,14 @@ export function useSocket(roomId?: string) {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const socketInstance = io({
+    // Connect to the same host and port
+    const url = typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.hostname}:3003`
+      : 'http://localhost:3003';
+
+    const socketInstance = io(url, {
       autoConnect: false,
+      transports: ['websocket', 'polling'],
     });
 
     socketInstance.on('connect', () => {
