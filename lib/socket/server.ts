@@ -20,7 +20,7 @@ interface ClientToServerEvents {
   [SOCKET_EVENTS.CLIENT.SET_READY]: (isReady: boolean) => void;
 }
 
-let io: Server<ServerToClientEvents, ClientToServerEvents>;
+let io: Server<ClientToServerEvents, ServerToClientEvents>;
 
 export function initializeSocketServer(httpServer: HTTPServer) {
   io = new Server(httpServer, {
