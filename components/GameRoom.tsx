@@ -168,6 +168,13 @@ export default function GameRoom({ roomId }: GameRoomProps) {
   const canStartGame = safeRoomState.players.length === 4 && safeRoomState.players.every(p => p.isReady);
   const currentPlayer = safeRoomState.players.find(p => p.id === playerId);
 
+  // 判断是否可以出牌：
+  // 1. 如果是新一轮开始（lastPlays中所有位置都是null），可以出牌
+  // 2. 或者当前玩家不是最后一个出牌的玩家（lastPlayPlayer）
+  const lastPlays = safeRoomState.lastPlays || { north: null, south: null, east: null, west: null };
+  const isNewRound = Object.values(lastPlays).every(p => p === null);
+  const canPlay = isNewRound || (safeRoomState.lastPlay && safeRoomState.lastPlayPlayer !== safeRoomState.players.findIndex(p => p.id === playerId));
+
   if (error && !roomState) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
