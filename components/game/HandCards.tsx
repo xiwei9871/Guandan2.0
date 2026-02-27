@@ -132,11 +132,12 @@ export default function HandCards({
                 className={`
                   relative w-12 h-16 sm:w-16 sm:h-24 rounded-lg border-2 transition-all duration-200 flex-shrink-0
                   ${selected
-                    ? 'border-blue-500 shadow-lg transform -translate-y-1 sm:-translate-y-2 z-10'
-                    : 'border-gray-300 hover:border-gray-400 hover:z-10'
+                    ? 'border-blue-500 shadow-xl transform -translate-y-1 sm:-translate-y-2 z-10'
+                    : 'border-blue-200 hover:border-blue-300 hover:shadow-lg hover:z-10'
                   }
-                  ${!isCurrentTurn ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}
-                  bg-white
+                  ${!isCurrentTurn ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                  bg-gradient-to-br from-white to-gray-50
+                  shadow-md
                   -ml-2 sm:-ml-3
                 `}
                 style={{ zIndex: selected ? 20 : 10 + index }}
@@ -168,20 +169,20 @@ export default function HandCards({
                 {/* 主体内容 - 被遮挡但可见轮廓 */}
                 <div className={`flex flex-col items-center justify-center h-full w-full ${card.rank === 15 ? (card.suit === 'spades' ? 'text-red-600' : 'text-gray-800') : suitColors[card.suit]}`}>
                   {/* Rank */}
-                  <div className="text-base sm:text-xl font-bold opacity-30">
+                  <div className="text-base sm:text-xl font-bold opacity-90">
                     {getCardDisplay(card, currentLevel)}
                   </div>
 
                   {/* Suit (not shown for jokers) */}
                   {card.rank !== 15 && (
-                    <div className="text-lg sm:text-2xl opacity-30">
+                    <div className="text-lg sm:text-2xl opacity-90">
                       {suitSymbols[card.suit]}
                     </div>
                   )}
 
                   {/* Level Card Indicator */}
                   {card.levelCard && (
-                    <div className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-3 h-3 sm:w-4 sm:h-4 bg-yellow-400 rounded-full flex items-center justify-center">
+                    <div className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-3 h-3 sm:w-4 sm:h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-sm">
                       <span className="text-xs font-bold text-yellow-900 hidden sm:inline">级</span>
                       <span className="text-xs font-bold text-yellow-900 sm:hidden">L</span>
                     </div>
@@ -189,7 +190,7 @@ export default function HandCards({
 
                   {/* Wildcard Indicator */}
                   {card.isWildcard && (
-                    <div className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1 w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded-full flex items-center justify-center">
+                    <div className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1 w-3 h-3 sm:w-4 sm:h-4 bg-red-500 rounded-full flex items-center justify-center shadow-sm">
                       <span className="text-xs font-bold text-white hidden sm:inline">配</span>
                       <span className="text-xs font-bold text-white sm:hidden">W</span>
                     </div>
@@ -197,7 +198,7 @@ export default function HandCards({
 
                   {/* Selected Checkmark */}
                   {selected && (
-                    <div className="absolute top-0.5 left-0.5 sm:top-1 sm:left-1 w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                    <div className="absolute top-0.5 left-0.5 sm:top-1 sm:left-1 w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
                       <span className="text-xs font-bold text-white">✓</span>
                     </div>
                   )}
