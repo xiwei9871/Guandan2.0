@@ -41,7 +41,24 @@ const rankDisplay: Record<number, string> = {
   12: 'Q',
   13: 'K',
   14: 'A',
+  15: '王', // Jokers
 };
+
+// Helper function to get card display text
+function getCardDisplay(card: Card, currentLevel: number): string {
+  // Jokers
+  if (card.rank === 15) {
+    return card.suit === 'spades' ? '大王' : '小王';
+  }
+
+  // Level cards
+  if (card.levelCard) {
+    return rankDisplay[currentLevel] || currentLevel;
+  }
+
+  // Regular cards
+  return rankDisplay[card.rank] || card.rank;
+}
 
 export default function HandCards({
   cards,
@@ -67,20 +84,24 @@ export default function HandCards({
     clearSelection();
   };
 
-  // Sort cards: 大小王 → 级牌 → A-2 (从大到小)，相同点数按花色分组
+  // Sort cards: 大王 → 小王 → 级牌 → A-2 (从大到小)，相同点数按花色分组
   const sortedCards = [...cards].sort((a, b) => {
-    // 大王 (rank=14, suit=spades) 和 小王 (rank=14, suit=hearts) 排最前
-    if (a.rank === 14 && a.suit === 'spades') return -1; // 大王
-    if (b.rank === 14 && b.suit === 'spades') return 1;  // 大王
-    if (a.rank === 14 && a.suit === 'hearts') return -1; // 小王
-    if (b.rank === 14 && b.suit === 'hearts') return 1;  // 小王
+    // 大小王 (rank 15)
+    if (a.rank === 15 && b.rank !== 15) return -1; // 大小王排最前
+    if (b.rank === 15 && a.rank !== 15) return 1;
+    if (a.rank === 15 && b.rank === 15) {
+      // 大王在前，小王在后
+      return a.suit === 'spades' ? -1 : 1;
+    }
 
-    // 级牌排第二
+    // 级牌排第二（级牌比A大）
     if (a.levelCard && !b.levelCard) return -1;
     if (!a.levelCard && b.levelCard) return 1;
 
     // 其他牌按rank从大到小排序
-    if (a.rank !== b.rank) return b.rank - a.rank;
+    if (a.rank !== b.rank) {
+      return b.rank - a.rank;
+    }
 
     // 相同rank按花色分组：♠ ♥ ♣ ♦
     const suitOrder = { spades: 0, hearts: 1, clubs: 2, diamonds: 3 };
@@ -88,8 +109,8 @@ export default function HandCards({
   });
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4">
-      <div className="mb-2 sm:mb-3 flex items-center justify-between flex-wrap gap-2">
+    <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4 h-full flex flex-col">
+      <div className="mb-2 sm:mb-3 flex items-center justify-between flex-wrap gap-2 flex-none">
         <h3 className="text-base sm:text-lg font-semibold text-gray-800">
           手牌 ({cards.length})
         </h3>
@@ -99,7 +120,7 @@ export default function HandCards({
       </div>
 
       {/* Cards Container - 使用重叠样式 */}
-      <div className="mb-3 sm:mb-4">
+      <div className="flex-1 min-h-0 overflow-y-auto mb-3 sm:mb-4">
         <div className="flex flex-wrap justify-center gap-0 -ml-2">
           {sortedCards.map((card, index) => {
             const selected = isCardSelected(card.id);
@@ -124,26 +145,39 @@ export default function HandCards({
                 <div className="absolute top-0 left-0 w-full h-full p-1 flex flex-col">
                   {/* 左上角小标识 - 用于识别牌 */}
                   <div className="flex items-center gap-0.5">
-                    <span className={`text-xs font-bold ${suitColors[card.suit]}`}>
-                      {suitSymbols[card.suit]}
-                    </span>
-                    <span className="text-xs font-bold text-gray-800">
-                      {rankDisplay[card.rank] || card.rank}
-                    </span>
+                    {/* Jokers show different colors */}
+                    {card.rank === 15 ? (
+                      <>
+                        <span className={`text-xs font-bold ${card.suit === 'spades' ? 'text-red-600' : 'text-gray-800'}`}>
+                          {card.suit === 'spades' ? '大' : '小'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className={`text-xs font-bold ${suitColors[card.suit]}`}>
+                          {suitSymbols[card.suit]}
+                        </span>
+                        <span className="text-xs font-bold text-gray-800">
+                          {getCardDisplay(card, currentLevel)}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 主体内容 - 被遮挡但可见轮廓 */}
-                <div className={`flex flex-col items-center justify-center h-full w-full ${suitColors[card.suit]}`}>
+                <div className={`flex flex-col items-center justify-center h-full w-full ${card.rank === 15 ? (card.suit === 'spades' ? 'text-red-600' : 'text-gray-800') : suitColors[card.suit]}`}>
                   {/* Rank */}
                   <div className="text-base sm:text-xl font-bold opacity-30">
-                    {rankDisplay[card.rank] || card.rank}
+                    {getCardDisplay(card, currentLevel)}
                   </div>
 
-                  {/* Suit */}
-                  <div className="text-lg sm:text-2xl opacity-30">
-                    {suitSymbols[card.suit]}
-                  </div>
+                  {/* Suit (not shown for jokers) */}
+                  {card.rank !== 15 && (
+                    <div className="text-lg sm:text-2xl opacity-30">
+                      {suitSymbols[card.suit]}
+                    </div>
+                  )}
 
                   {/* Level Card Indicator */}
                   {card.levelCard && (
@@ -176,7 +210,7 @@ export default function HandCards({
 
       {/* Action Buttons */}
       {isCurrentTurn && (
-        <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
+        <div className="flex flex-wrap gap-2 sm:gap-3 justify-center flex-none">
           <button
             onClick={handlePlayCards}
             disabled={selectedCardObjects.length === 0 || !canPlay}
