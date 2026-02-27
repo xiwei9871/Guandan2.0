@@ -423,9 +423,18 @@ app.prepare().then(() => {
       room.lastPlay = playInfo;
       room.lastPlayPlayer = playerIndex;
 
-      // Check if this will complete a round (before adding the play)
-      const currentPlayedCount = Object.values(room.lastPlays).filter(p => p !== null).length;
-      const willCompleteRound = currentPlayedCount === 3;
+      // Check if all 4 positions have plays (round is complete)
+      const allPlayed = room.lastPlays && Object.values(room.lastPlays).every(p => p !== null);
+
+      // If this is the first play of a new round, clear the previous round's plays first
+      if (allPlayed) {
+        room.lastPlays = {
+          north: null,
+          south: null,
+          east: null,
+          west: null,
+        };
+      }
 
       // Update lastPlays for player's position
       if (!room.lastPlays) {
@@ -444,19 +453,9 @@ app.prepare().then(() => {
       roomPlayers.set(roomId, players);
       const roomState = createRoomState(room, players);
 
-      // Send state FIRST so client can see all 4 plays
+      // Send state
       io.to(roomId).emit('room:updated', roomState);
       io.to(roomId).emit('game:stateChanged', roomState);
-
-      // THEN clear if round is complete (after client has received the state)
-      if (willCompleteRound) {
-        room.lastPlays = {
-          north: null,
-          south: null,
-          east: null,
-          west: null,
-        };
-      }
 
       if (callback && typeof callback === 'function') {
         callback({ success: true, roomState });
@@ -514,9 +513,18 @@ app.prepare().then(() => {
         isPass: true
       };
 
-      // Check if this will complete a round (before adding the pass)
-      const currentPlayedCount = Object.values(room.lastPlays).filter(p => p !== null).length;
-      const willCompleteRound = currentPlayedCount === 3;
+      // Check if all 4 positions have plays (round is complete)
+      const allPlayed = room.lastPlays && Object.values(room.lastPlays).every(p => p !== null);
+
+      // If this is the first play of a new round, clear the previous round's plays first
+      if (allPlayed) {
+        room.lastPlays = {
+          north: null,
+          south: null,
+          east: null,
+          west: null,
+        };
+      }
 
       // Update lastPlays for player's position
       if (!room.lastPlays) {
@@ -534,19 +542,9 @@ app.prepare().then(() => {
 
       const roomState = createRoomState(room, players);
 
-      // Send state FIRST so client can see all 4 plays/passes
+      // Send state
       io.to(roomId).emit('room:updated', roomState);
       io.to(roomId).emit('game:stateChanged', roomState);
-
-      // THEN clear if round is complete (after client has received the state)
-      if (willCompleteRound) {
-        room.lastPlays = {
-          north: null,
-          south: null,
-          east: null,
-          west: null,
-        };
-      }
 
       if (callback && typeof callback === 'function') {
         callback({ success: true, roomState });
