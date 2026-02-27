@@ -4,9 +4,10 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/constants';
-import { Player, RoomState, Card } from '@/lib/types';
+import { Player, RoomState } from '@/lib/types';
 import PlayerCard from './game/PlayerCard';
 import HandCards from './game/HandCards';
+import CenterPlayArea from './game/CenterPlayArea';
 
 interface GameRoomProps {
   roomId: string;
@@ -197,174 +198,134 @@ export default function GameRoom({ roomId }: GameRoomProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">房间 {roomId}</h1>
-            <p className="text-sm text-gray-600">
-              {roomState.players.length}/4 玩家 · 级牌 {roomState.currentLevel > 13 ? 'A' : roomState.currentLevel}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${isConnected ? 'bg-green-100' : 'bg-red-100'}`}>
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-sm">{isConnected ? '已连接' : '未连接'}</span>
-            </div>
-            <button
-              onClick={handleLeaveRoom}
-              disabled={isLeaving}
-              className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 disabled:opacity-50 transition"
-            >
-              {isLeaving ? '离开中...' : '离开'}
-            </button>
-          </div>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-            <p className="text-red-600">{error}</p>
-          </div>
-        )}
-
-        {/* Game Phase Display */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <div className="text-center">
-            <span className="text-lg font-semibold text-gray-800">
+    <div className="h-screen bg-gradient-to-br from-green-50 to-blue-50 flex flex-col overflow-hidden">
+      {/* Header - 5vh */}
+      <div className="h-[5vh] bg-white shadow-md px-4 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold text-gray-800">房间 {roomId}</h1>
+          <p className="text-sm text-gray-600">
+            {roomState.players.length}/4 玩家 · 级牌 {roomState.currentLevel > 13 ? 'A' : roomState.currentLevel}
+          </p>
+          {roomState.gamePhase && (
+            <span className="text-sm font-semibold text-gray-700">
               {roomState.gamePhase === 'waiting' && '等待玩家准备'}
               {roomState.gamePhase === 'tributing' && '进贡阶段'}
               {roomState.gamePhase === 'playing' && '游戏中'}
               {roomState.gamePhase === 'finished' && '游戏结束'}
             </span>
-          </div>
+          )}
         </div>
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${isConnected ? 'bg-green-100' : 'bg-red-100'}`}>
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-sm">{isConnected ? '已连接' : '未连接'}</span>
+          </div>
+          <button
+            onClick={handleLeaveRoom}
+            disabled={isLeaving}
+            className="bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-600 disabled:opacity-50 transition text-sm"
+          >
+            {isLeaving ? '离开中...' : '离开'}
+          </button>
+        </div>
+      </div>
 
-        {/* Game Board */}
-        <div className="bg-white rounded-lg shadow-xl p-6 mb-4">
-          {/* Players Grid */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {/* North Player */}
-            <div className="col-start-2">
-              {roomState.players.find(p => p.position === 'north') && (
-                <PlayerCard
-                  player={roomState.players.find(p => p.position === 'north')!}
-                  isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'north')}
-                  isSelf={currentPlayer?.position === 'north'}
-                />
-              )}
-            </div>
+      {/* Error Message - Overlay */}
+      {error && (
+        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-50 bg-red-50 border border-red-200 rounded-lg shadow-lg px-6 py-3">
+          <p className="text-red-600">{error}</p>
+        </div>
+      )}
 
-            {/* West Player */}
-            <div className="col-start-1 row-start-2">
-              {roomState.players.find(p => p.position === 'west') && (
-                <PlayerCard
-                  player={roomState.players.find(p => p.position === 'west')!}
-                  isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'west')}
-                  isSelf={currentPlayer?.position === 'west'}
-                />
-              )}
-            </div>
+      {/* North Player - 10vh */}
+      <div className="h-[10vh] px-4 flex items-center justify-center flex-shrink-0">
+        {roomState.players.find(p => p.position === 'north') ? (
+          <div className="w-full max-w-xs">
+            <PlayerCard
+              player={roomState.players.find(p => p.position === 'north')!}
+              isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'north')}
+              isSelf={currentPlayer?.position === 'north'}
+            />
+          </div>
+        ) : (
+          <div className="w-full max-w-xs bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-400">
+            等待玩家加入...
+          </div>
+        )}
+      </div>
 
-            {/* Center Area */}
-            <div className="col-start-2 row-start-2 bg-gradient-to-br from-green-100 to-green-200 rounded-lg p-4 min-h-48 flex items-center justify-center border-4 border-green-300">
-              <div className="text-center">
-                {roomState.gamePhase === 'waiting' && (
-                  <div>
-                    <p className="text-lg font-semibold text-gray-700 mb-2">等待游戏开始</p>
-                    <p className="text-sm text-gray-600">需要4名玩家全部准备</p>
-                  </div>
-                )}
-                {roomState.gamePhase === 'playing' && isCurrentPlayerTurn && (
-                  <div>
-                    <p className="text-lg font-bold text-blue-600 mb-2">轮到你出牌</p>
-                    <p className="text-sm text-gray-600">选择手牌出牌或不要</p>
-                  </div>
-                )}
-                {roomState.gamePhase === 'playing' && !isCurrentPlayerTurn && (
-                  <div>
-                    <p className="text-lg font-semibold text-gray-700">等待其他玩家出牌</p>
-                  </div>
-                )}
-                {roomState.lastPlay && (
-                  <div className="mt-4 p-3 bg-white rounded-lg shadow">
-                    <p className="text-sm text-gray-600 mb-2">
-                      {roomState.players.find(p => p.id === roomState.lastPlay?.playerId)?.name} 出牌
-                    </p>
-                    {/* 显示具体出的牌 */}
-                    <div className="flex flex-wrap gap-1 justify-start">
-                      {roomState.lastPlay.cards.map((card, index) => (
-                        <div
-                          key={card.id || index}
-                          className="w-10 h-14 rounded border-2 border-gray-300 bg-white flex flex-col items-center justify-center"
-                          title={`${card.suit} ${card.rank}`}
-                        >
-                          <span className="text-xs text-gray-800">{card.rank}</span>
-                          <span className="text-sm">
-                            {card.suit === 'spades' ? '♠' :
-                             card.suit === 'hearts' ? '♥' :
-                             card.suit === 'clubs' ? '♣' : '♦'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-sm text-gray-500 mt-2">
-                      {roomState.lastPlay.cards.length} 张牌 · {roomState.lastPlay.type}
-                    </p>
-                  </div>
-                )}
+      {/* Center Area - 50vh */}
+      <div className="h-[50vh] px-4 flex-shrink-0">
+        <div className="w-full h-full flex gap-4">
+          {/* West Player - w-1/6 */}
+          <div className="w-1/6 flex items-center justify-center">
+            {roomState.players.find(p => p.position === 'west') ? (
+              <PlayerCard
+                player={roomState.players.find(p => p.position === 'west')!}
+                isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'west')}
+                isSelf={currentPlayer?.position === 'west'}
+              />
+            ) : (
+              <div className="w-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-400">
+                西方空位
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* East Player */}
-            <div className="col-start-3 row-start-2">
-              {roomState.players.find(p => p.position === 'east') && (
-                <PlayerCard
-                  player={roomState.players.find(p => p.position === 'east')!}
-                  isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'east')}
-                  isSelf={currentPlayer?.position === 'east'}
-                />
-              )}
-            </div>
+          {/* CenterPlayArea - flex-1 */}
+          <div className="flex-1">
+            {playerId ? (
+              <CenterPlayArea roomState={safeRoomState} currentPlayerId={playerId} />
+            ) : (
+              <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center">
+                <p className="text-gray-400">加载中...</p>
+              </div>
+            )}
+          </div>
 
-            {/* South Player */}
-            <div className="col-start-2 row-start-3">
-              {roomState.players.find(p => p.position === 'south') && (
-                <PlayerCard
-                  player={roomState.players.find(p => p.position === 'south')!}
-                  isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'south')}
-                  isSelf={currentPlayer?.position === 'south'}
-                />
-              )}
-            </div>
+          {/* East Player - w-1/6 */}
+          <div className="w-1/6 flex items-center justify-center">
+            {roomState.players.find(p => p.position === 'east') ? (
+              <PlayerCard
+                player={roomState.players.find(p => p.position === 'east')!}
+                isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'east')}
+                isSelf={currentPlayer?.position === 'east'}
+              />
+            ) : (
+              <div className="w-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-400">
+                东方空位
+              </div>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Scores */}
+      {/* Bottom Area - 35vh (Hand cards + buttons) */}
+      <div className="h-[35vh] px-4 pb-4 flex flex-col gap-2 flex-shrink-0 overflow-hidden">
+        {/* Scores Display */}
         {roomState.gamePhase === 'playing' && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-            <div className="flex justify-around">
+          <div className="bg-white rounded-lg shadow-md px-4 py-2 flex-shrink-0">
+            <div className="flex justify-around items-center">
               <div className="text-center">
-                <p className="text-sm text-gray-600 mb-1">红队</p>
-                <p className="text-2xl font-bold text-red-600">{roomState.scores.red}</p>
+                <p className="text-xs text-gray-600 mb-1">红队</p>
+                <p className="text-xl font-bold text-red-600">{roomState.scores.red}</p>
               </div>
-              <div className="text-4xl text-gray-300">vs</div>
+              <div className="text-2xl text-gray-300">vs</div>
               <div className="text-center">
-                <p className="text-sm text-gray-600 mb-1">蓝队</p>
-                <p className="text-2xl font-bold text-blue-600">{roomState.scores.blue}</p>
+                <p className="text-xs text-gray-600 mb-1">蓝队</p>
+                <p className="text-xl font-bold text-blue-600">{roomState.scores.blue}</p>
               </div>
             </div>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-4 justify-center">
+        <div className="flex gap-4 justify-center flex-shrink-0">
           {roomState.gamePhase === 'waiting' && currentPlayer && !currentPlayer.isReady && (
             <button
               onClick={handleReady}
               disabled={!isConnected}
-              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-8 py-3 rounded-lg font-medium hover:from-green-600 hover:to-green-700 disabled:opacity-50 transition transform hover:scale-105"
+              className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-2 rounded-lg font-medium hover:from-green-600 hover:to-green-700 disabled:opacity-50 transition transform hover:scale-105 text-sm"
             >
               准备
             </button>
@@ -373,25 +334,25 @@ export default function GameRoom({ roomId }: GameRoomProps) {
             <button
               onClick={handleStartGame}
               disabled={!isConnected}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition transform hover:scale-105"
+              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition transform hover:scale-105 text-sm"
             >
               开始游戏
             </button>
           )}
         </div>
 
-        {/* Empty Player Slots */}
-        {roomState.players.length < 4 && (
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-center text-blue-800">
+        {/* Empty Player Slots Notice */}
+        {roomState.players.length < 4 && roomState.gamePhase === 'waiting' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex-shrink-0">
+            <p className="text-center text-blue-800 text-sm">
               等待更多玩家加入... ({roomState.players.length}/4)
             </p>
           </div>
         )}
 
-        {/* Hand Cards */}
+        {/* Hand Cards - Flexible within remaining space */}
         {roomState.gamePhase === 'playing' && currentPlayer && currentPlayer.hand && (
-          <div className="mt-6">
+          <div className="flex-1 min-h-0">
             <HandCards
               cards={currentPlayer.hand}
               currentLevel={roomState.currentLevel}
