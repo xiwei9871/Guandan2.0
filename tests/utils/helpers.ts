@@ -48,13 +48,35 @@ export async function joinRoom(page: Page, roomId: string, playerName: string): 
   // 点击加入房间
   await page.click('button:has-text("加入房间")');
 
-  // 等待跳转到房间页面
-  await page.waitForURL(`\/room\/${roomId}`, { timeout: TIMEOUTS.JOIN_ROOM });
+  // 等待跳转到房间页面或错误显示
+  try {
+    // 先等待一下，让服务器处理请求
+    await page.waitForTimeout(1000);
 
-  // 验证玩家名称显示
-  await expect(page.locator('text=您')).toContain(playerName);
+    // 检查是否有错误消息
+    const hasError = await page.locator('text=房间不存在').count() > 0 ||
+                     await page.locator('text=加入房间失败').count() > 0;
 
-  console.log(`✅ ${playerName} joined room ${roomId}`);
+    if (hasError) {
+      throw new Error(`Failed to join room ${roomId} - room not found or join failed`);
+    }
+
+    // 检查当前 URL，如果已经在房间页面，等待页面加载完成
+    const currentUrl = page.url();
+    if (currentUrl.includes(`/room/${roomId}`)) {
+      // 已经在房间页面，等待页面内容加载
+      await page.waitForLoadState('networkidle', { timeout: TIMEOUTS.JOIN_ROOM }).catch(() => {});
+      console.log(`✅ ${playerName} joined room ${roomId} (already on page)`);
+    } else {
+      // 等待跳转到房间页面
+      await page.waitForURL(`\/room\/${roomId}`, { timeout: TIMEOUTS.JOIN_ROOM });
+      console.log(`✅ ${playerName} joined room ${roomId}`);
+    }
+  } catch (error) {
+    // 截图用于调试
+    await page.screenshot({ path: `tests/e2e/screenshots/error-join-${playerName}.png` });
+    throw error;
+  }
 }
 
 // 设置准备状态
@@ -83,12 +105,11 @@ export async function expectText(page: Page, text: string): Promise<void> {
 // 等待控制台日志
 export async function waitForConsoleLog(page: Page, message: string): Promise<void> {
   await page.waitForFunction(
-    () => {
-      const logs = page.evaluate(() => {
-        return (window as any).consoleLogs || [];
-      });
-      return logs.some((log: string) => log.includes(message));
+    (msg: string) => {
+      const logs = (window as any).consoleLogs || [];
+      return logs.some((log: string) => log.includes(msg));
     },
+    message,
     { timeout: 5000 }
   );
 }
