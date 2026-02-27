@@ -71,6 +71,12 @@ export interface RoomState {
   currentTurn: number; // 当前出牌玩家索引 0-3
   lastPlay: Play | null;
   lastPlayPlayer: number | null;
+  lastPlays?: {
+    north?: PlayInfo | null;
+    south?: PlayInfo | null;
+    east?: PlayInfo | null;
+    west?: PlayInfo | null;
+  };
   gamePhase: GamePhase;
   scores: {
     red: number;
@@ -88,4 +94,14 @@ export interface Room {
   status: 'waiting' | 'playing' | 'finished';
   gameState: RoomState | null;
   createdAt: number;
+}
+
+// 玩家出牌信息
+export interface PlayInfo {
+  playerId: string;
+  cards: Card[];
+  type: string;
+  mainRank: number;
+  timestamp: number;
+  isPass?: boolean;
 }
