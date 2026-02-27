@@ -4,7 +4,7 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/constants';
-import { Player, RoomState } from '@/lib/types';
+import { Player, RoomState, Card } from '@/lib/types';
 import PlayerCard from './game/PlayerCard';
 import HandCards from './game/HandCards';
 import CenterPlayArea from './game/CenterPlayArea';
