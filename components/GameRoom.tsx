@@ -25,6 +25,7 @@ export default function GameRoom({ roomId }: GameRoomProps) {
   // Add default values to prevent undefined errors
   const safeRoomState = roomState || {
     id: roomId,
+    roomId: roomId,
     name: '',
     maxPlayers: 4,
     status: 'waiting',
@@ -37,6 +38,14 @@ export default function GameRoom({ roomId }: GameRoomProps) {
     scores: { red: 0, blue: 0 },
     lastPlay: null,
     lastPlayPlayer: null,
+    lastPlays: {
+      north: null,
+      south: null,
+      east: null,
+      west: null,
+    },
+    dealer: 0,
+    tribute: null,
   };
 
   useEffect(() => {

@@ -51,11 +51,11 @@ function getCardDisplay(card: Card, currentLevel: number = 2): string {
 
   // Level cards
   if (card.levelCard) {
-    return rankDisplay[currentLevel] || currentLevel;
+    return rankDisplay[currentLevel] || String(currentLevel);
   }
 
   // Regular cards
-  return rankDisplay[card.rank] || card.rank;
+  return rankDisplay[card.rank] || String(card.rank);
 }
 
 const positionNames: Record<Position, string> = {
