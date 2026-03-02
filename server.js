@@ -2,6 +2,13 @@ const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
+const { detectCardType, canBeat } = require('./lib/game/cardChecker.runtime.js');
+const { isRoomOwner, resolveRoomOwnerId } = require('./lib/game/lobbyRules.runtime.js');
+const {
+  getNextTurnIndex,
+  shouldRequireBeat,
+  applyRankingAndSettlement,
+} = require('./lib/game/serverRoundState.runtime.js');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -35,10 +42,86 @@ app.prepare().then(() => {
   const rooms = new Map();
   const roomPlayers = new Map();
 
+  function normalizeRoomId(roomId) {
+    return String(roomId || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 10);
+  }
+
+  function getCardsRemaining(player) {
+    if (typeof player.cardsRemaining === 'number') {
+      return player.cardsRemaining;
+    }
+
+    if (Array.isArray(player.hand)) {
+      return player.hand.length;
+    }
+
+    return 0;
+  }
+
+  function getActivePositions(players) {
+    return players
+      .filter((player) => getCardsRemaining(player) > 0)
+      .map((player) => player.position);
+  }
+
+  function getCurrentLeadPosition(lastPlays, lastPlay) {
+    if (!lastPlays || !lastPlay) {
+      return null;
+    }
+
+    const positions = ['south', 'west', 'north', 'east'];
+    for (const position of positions) {
+      const play = lastPlays[position];
+      if (
+        play &&
+        !play.isPass &&
+        play.playerId === lastPlay.playerId &&
+        play.timestamp === lastPlay.timestamp
+      ) {
+        return position;
+      }
+    }
+
+    for (const position of positions) {
+      const play = lastPlays[position];
+      if (play && !play.isPass && play.playerId === lastPlay.playerId) {
+        return position;
+      }
+    }
+
+    return null;
+  }
+
+  function haveAllActivePlayersActed(lastPlays, lastPlay, activePositions, players) {
+    if (!lastPlays || !lastPlay || activePositions.length === 0) {
+      return false;
+    }
+
+    const leadPosition = getCurrentLeadPosition(lastPlays, lastPlay);
+    if (!leadPosition) {
+      return false;
+    }
+
+    const responderPositions = activePositions.filter((position) => position !== leadPosition);
+
+    if (responderPositions.length === 0) {
+      return false;
+    }
+
+    return responderPositions.every((position) => {
+      const play = lastPlays[position];
+      return play !== null && play !== undefined && play.timestamp >= lastPlay.timestamp;
+    });
+  }
+
   // Helper function to create complete room state
   function createRoomState(room, players) {
     return {
       roomId: room.id,
+      ownerId: room.ownerId || null,
       name: room.name,
       maxPlayers: room.maxPlayers,
       status: room.status,
@@ -50,18 +133,19 @@ app.prepare().then(() => {
       })),
       gamePhase: room.gamePhase || 'waiting',
       currentLevel: room.currentLevel || 2,
-      currentTurn: room.currentTurn || 0,
+      currentTurn: room.currentTurn ?? 0,
       scores: room.scores || { red: 0, blue: 0 },
       lastPlay: room.lastPlay || null,
-      lastPlayPlayer: room.lastPlayPlayer || null,
+      lastPlayPlayer: room.lastPlayPlayer ?? null,
       lastPlays: room.lastPlays || {
         north: null,
         south: null,
         east: null,
         west: null,
       },
-      dealer: room.dealer || 0,
+      dealer: room.dealer ?? 0,
       tribute: room.tribute || null,
+      result: room.result || null,
     };
   }
 
@@ -149,10 +233,12 @@ app.prepare().then(() => {
     console.log(`Client connected: ${socket.id}`);
 
     // Create room
-    socket.on('room:create', ({ playerName }, callback) => {
+    socket.on('room:create', ({ playerName, clientId }, callback) => {
+      const stableClientId = clientId || socket.id;
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const player = {
         id: socket.id,
+        clientId: stableClientId,
         name: playerName,
         position: 'south',
         team: 'red',
@@ -163,6 +249,7 @@ app.prepare().then(() => {
 
       const room = {
         id: roomId,
+        ownerId: stableClientId,
         name: `${playerName}的房间`,
         maxPlayers: 4,
         status: 'waiting',
@@ -189,7 +276,9 @@ app.prepare().then(() => {
     });
 
     // Join room
-    socket.on('room:join', ({ roomId, playerName }, callback) => {
+    socket.on('room:join', ({ roomId, playerName, clientId }, callback) => {
+      const stableClientId = clientId || socket.id;
+      roomId = normalizeRoomId(roomId);
       console.log(`[DEBUG] room:join event - Socket: ${socket.id}, Room: ${roomId}, Player: ${playerName}`);
       console.log(`[DEBUG] Existing rooms:`, Array.from(rooms.keys()));
       console.log(`[DEBUG] Socket data:`, socket.data);
@@ -216,17 +305,36 @@ app.prepare().then(() => {
       const players = roomPlayers.get(roomId) || [];
 
       // Check if player is already in the room (re-join scenario)
-      const existingPlayer = players.find(p => p.id === socket.id);
+      const existingPlayer = players.find(
+        p => p.clientId === stableClientId || p.id === socket.id
+      );
       if (existingPlayer) {
-        // Player already in room, just return success
-        console.log(`${playerName} re-joined room ${roomId} (already in room)`);
+        if (existingPlayer.id !== socket.id) {
+          const previousSocket = io.sockets.sockets.get(existingPlayer.id);
+          if (previousSocket) {
+            previousSocket.leave(roomId);
+            previousSocket.data.roomId = null;
+            previousSocket.data.player = null;
+          }
+        }
+
+        existingPlayer.id = socket.id;
+        existingPlayer.clientId = stableClientId;
+        existingPlayer.name = playerName;
+        socket.data.roomId = roomId;
+        socket.data.player = existingPlayer;
+        socket.join(roomId);
+
+        console.log(`${playerName} re-joined room ${roomId} (matched by stable client id)`);
+        const roomState = createRoomState(room, players);
         if (callback && typeof callback === 'function') {
           callback({
             success: true,
             playerId: existingPlayer.id,
-            roomState: room
+            roomState: roomState
           });
         }
+        io.to(roomId).emit('room:updated', roomState);
         return;
       }
 
@@ -239,11 +347,12 @@ app.prepare().then(() => {
       }
 
       const positions = ['south', 'west', 'north', 'east'];
-      const teams = ['red', 'blue', 'blue', 'red'];
+      const teams = ['red', 'blue', 'red', 'blue'];
       const index = players.length;
 
       const player = {
         id: socket.id,
+        clientId: stableClientId,
         name: playerName,
         position: positions[index],
         team: teams[index],
@@ -254,6 +363,9 @@ app.prepare().then(() => {
 
       socket.data.roomId = roomId;
       socket.data.player = player;
+      if (!room.ownerId || players.length === 0) {
+        room.ownerId = player.clientId || player.id;
+      }
       players.push(player);
       roomPlayers.set(roomId, players);
 
@@ -298,6 +410,7 @@ app.prepare().then(() => {
 
     // Start game
     socket.on('game:start', ({ roomId, playerId }, callback) => {
+      roomId = normalizeRoomId(roomId);
       console.log(`[DEBUG] game:start event - Room: ${roomId}, Player: ${playerId}`);
 
       const room = rooms.get(roomId);
@@ -319,10 +432,28 @@ app.prepare().then(() => {
         return;
       }
 
-      if (!players.every(p => p.isReady)) {
+      const isFinishedRoundRestart = room.status === 'finished' || room.gamePhase === 'finished';
+
+      if (!isFinishedRoundRestart && !players.every(p => p.isReady)) {
         console.log(`[DEBUG] Not all players ready`);
         if (callback && typeof callback === 'function') {
           callback({ success: false, error: '需要所有玩家都准备好' });
+        }
+        return;
+      }
+
+      const currentPlayer = players.find((player) => player.id === playerId);
+
+      if (!currentPlayer) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: 'Player not found in room' });
+        }
+        return;
+      }
+
+      if (!isRoomOwner(room.ownerId, currentPlayer.clientId || currentPlayer.id)) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '只有房主可以开始游戏' });
         }
         return;
       }
@@ -338,11 +469,13 @@ app.prepare().then(() => {
       updatedPlayers.forEach(p => {
         p.isReady = false; // Reset ready state
         p.cardsRemaining = p.hand.length;
+        delete p.rank;
       });
 
       roomPlayers.set(roomId, updatedPlayers);
 
       // Update room properties
+      room.status = 'playing';
       room.gamePhase = 'playing';
       room.currentTurn = 0;
       room.dealer = 0;
@@ -355,6 +488,7 @@ app.prepare().then(() => {
         east: null,
         west: null,
       };
+      room.result = null;
 
       // Create room state
       const roomState = createRoomState(room, updatedPlayers);
@@ -374,6 +508,7 @@ app.prepare().then(() => {
 
     // Play cards
     socket.on('game:play', ({ roomId, playerId, cards }, callback) => {
+      roomId = normalizeRoomId(roomId);
       console.log(`[DEBUG] game:play - Room: ${roomId}, Player: ${playerId}, Cards: ${cards?.length || 0}`);
 
       const room = rooms.get(roomId);
@@ -404,30 +539,96 @@ app.prepare().then(() => {
         return;
       }
 
+      // Validate selected cards before applying state changes
+      if (!Array.isArray(cards) || cards.length === 0) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '必须出牌' });
+        }
+        return;
+      }
+
+      const selectedIds = cards.map(c => c.id);
+      if (new Set(selectedIds).size !== selectedIds.length) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '选中的牌无效' });
+        }
+        return;
+      }
+
+      const handById = new Map(player.hand.map(c => [c.id, c]));
+      if (selectedIds.some(id => !handById.has(id))) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '手牌中不存在选中的牌' });
+        }
+        return;
+      }
+
+      const selectedCards = selectedIds.map(id => handById.get(id));
+      if (selectedCards.some(card => !card)) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '手牌数据异常' });
+        }
+        return;
+      }
+
+      const typeResult = detectCardType(selectedCards);
+      if (!typeResult.valid || !typeResult.type) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '闈炴硶鐗屽瀷' });
+        }
+        return;
+      }
+
+      const previousLastPlay = room.lastPlay;
+      const activePositions = getActivePositions(players);
+      const roundCompleteBeforePlay = haveAllActivePlayersActed(
+        room.lastPlays,
+        previousLastPlay,
+        activePositions,
+        players
+      );
+
+      if (shouldRequireBeat({
+        lastPlay: previousLastPlay,
+        lastPlayPlayer: room.lastPlayPlayer,
+        playerIndex,
+        roundComplete: roundCompleteBeforePlay,
+      })) {
+        const canBeatLastPlay = canBeat(
+          selectedCards,
+          {
+            type: previousLastPlay.type,
+            mainRank: previousLastPlay.mainRank,
+            cards: previousLastPlay.cards,
+          },
+          room.currentLevel || 2
+        );
+
+        if (!canBeatLastPlay) {
+          if (callback && typeof callback === 'function') {
+            callback({ success: false, error: '打不过上一手牌' });
+          }
+          return;
+        }
+      }
+
       // Remove played cards from hand
-      const cardIds = cards.map(c => c.id);
+      const cardIds = selectedIds;
       player.hand = player.hand.filter(c => !cardIds.includes(c.id));
       player.cardsRemaining = player.hand.length;
 
       // Create PlayInfo object
       const playInfo = {
         playerId: playerId,
-        cards: cards,
-        type: 'single', // TODO: Determine actual card type
-        mainRank: cards[0]?.rank || 2,
+        cards: selectedCards,
+        type: typeResult.type,
+        mainRank: typeResult.mainRank,
         timestamp: Date.now(),
         isPass: false
       };
 
-      // Update last play (backward compatibility)
-      room.lastPlay = playInfo;
-      room.lastPlayPlayer = playerIndex;
-
-      // Check if all 4 positions have plays (round is complete)
-      const allPlayed = room.lastPlays && Object.values(room.lastPlays).every(p => p !== null);
-
-      // If this is the first play of a new round, clear the previous round's plays first
-      if (allPlayed) {
+      // Only clear center plays when a new round actually starts with a real play
+      if (roundCompleteBeforePlay) {
         room.lastPlays = {
           north: null,
           south: null,
@@ -445,10 +646,16 @@ app.prepare().then(() => {
           west: null,
         };
       }
+
+      // Update last play (backward compatibility)
+      room.lastPlay = playInfo;
+      room.lastPlayPlayer = playerIndex;
       room.lastPlays[player.position] = playInfo;
 
-      // Move to next player
-      room.currentTurn = (room.currentTurn + 1) % 4;
+      const settlementResult = applyRankingAndSettlement(room, players, playerIndex);
+      if (!settlementResult.finished) {
+        room.currentTurn = getNextTurnIndex(players, playerIndex, room.lastPlayPlayer, false);
+      }
 
       roomPlayers.set(roomId, players);
       const roomState = createRoomState(room, players);
@@ -466,6 +673,7 @@ app.prepare().then(() => {
 
     // Pass turn
     socket.on('game:pass', ({ roomId, playerId }, callback) => {
+      roomId = normalizeRoomId(roomId);
       console.log(`[DEBUG] game:pass - Room: ${roomId}, Player: ${playerId}`);
 
       const room = rooms.get(roomId);
@@ -503,6 +711,14 @@ app.prepare().then(() => {
         return;
       }
 
+      const activePositions = getActivePositions(players);
+      if (haveAllActivePlayersActed(room.lastPlays, room.lastPlay, activePositions, players)) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '\u5fc5\u987b\u51fa\u724c' });
+        }
+        return;
+      }
+
       // Create PlayInfo object for pass
       const passInfo = {
         playerId: playerId,
@@ -512,19 +728,6 @@ app.prepare().then(() => {
         timestamp: Date.now(),
         isPass: true
       };
-
-      // Check if all 4 positions have plays (round is complete)
-      const allPlayed = room.lastPlays && Object.values(room.lastPlays).every(p => p !== null);
-
-      // If this is the first play of a new round, clear the previous round's plays first
-      if (allPlayed) {
-        room.lastPlays = {
-          north: null,
-          south: null,
-          east: null,
-          west: null,
-        };
-      }
 
       // Update lastPlays for player's position
       if (!room.lastPlays) {
@@ -537,8 +740,19 @@ app.prepare().then(() => {
       }
       room.lastPlays[players[playerIndex].position] = passInfo;
 
-      // Move to next player
-      room.currentTurn = (room.currentTurn + 1) % 4;
+      const roundComplete = haveAllActivePlayersActed(
+        room.lastPlays,
+        room.lastPlay,
+        activePositions,
+        players
+      );
+
+      room.currentTurn = getNextTurnIndex(
+        players,
+        playerIndex,
+        room.lastPlayPlayer,
+        roundComplete
+      );
 
       const roomState = createRoomState(room, players);
 
@@ -591,11 +805,20 @@ app.prepare().then(() => {
           } else {
             // Room is recently created or empty for less than 30 seconds, keep it
             roomPlayers.set(roomId, []);
+            const room = rooms.get(roomId);
+            if (room) {
+              room.ownerId = null;
+              rooms.set(roomId, room);
+            }
             console.log(`${player.name} left room ${roomId} - room kept (recently created/reconnecting)`);
           }
         } else {
           roomPlayers.set(roomId, filteredPlayers);
           const room = rooms.get(roomId);
+          if (room) {
+            room.ownerId = resolveRoomOwnerId(room.ownerId, filteredPlayers);
+            rooms.set(roomId, room);
+          }
           const roomState = createRoomState(room, filteredPlayers);
           io.to(roomId).emit('room:playerLeft', { playerId: player.id, roomState });
           console.log(`${player.name} left room ${roomId}`);

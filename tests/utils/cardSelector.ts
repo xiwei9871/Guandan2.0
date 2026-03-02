@@ -25,17 +25,21 @@ function findSuitsWithCount(cards: Card[], rank: number, count: number): Card[] 
 }
 
 function getSinglePlays(cards: Card[]): CardPlayOption[] {
-  return cards.map(card => ({
-    type: CardType.SINGLE,
-    cards: [card],
-    mainRank: card.rank,
-    description: `单张 ${card.rank}`
-  }));
+  return cards
+    .filter(card => card.rank !== 15) // Exclude jokers from single plays (save for bombs)
+    .map(card => ({
+      type: CardType.SINGLE,
+      cards: [card],
+      mainRank: card.rank,
+      description: `单张 ${card.rank}`
+    }));
 }
 
 function getPairPlays(rankMap: Map<number, Card[]>): CardPlayOption[] {
   const plays: CardPlayOption[] = [];
   for (const [rank, cards] of Array.from(rankMap.entries())) {
+    // Skip jokers for pair plays
+    if (rank === 15) continue;
     if (cards.length >= 2) {
       plays.push({
         type: CardType.PAIR,
@@ -51,6 +55,8 @@ function getPairPlays(rankMap: Map<number, Card[]>): CardPlayOption[] {
 function getTriplePlays(rankMap: Map<number, Card[]>): CardPlayOption[] {
   const plays: CardPlayOption[] = [];
   for (const [rank, cards] of Array.from(rankMap.entries())) {
+    // Skip jokers for triple plays
+    if (rank === 15) continue;
     if (cards.length >= 3) {
       plays.push({
         type: CardType.TRIPLE,
@@ -65,8 +71,22 @@ function getTriplePlays(rankMap: Map<number, Card[]>): CardPlayOption[] {
 
 function getBombPlays(rankMap: Map<number, Card[]>): CardPlayOption[] {
   const plays: CardPlayOption[] = [];
+
+  // Check for 王炸 first - one big joker and one small joker
+  const bigJoker = rankMap.get(15)?.filter(c => c.suit === 'spades') || [];
+  const smallJoker = rankMap.get(15)?.filter(c => c.suit === 'hearts') || [];
+  if (bigJoker.length > 0 && smallJoker.length > 0) {
+    plays.push({
+      type: CardType.BOMB,
+      cards: [bigJoker[0], smallJoker[0]],
+      mainRank: 999, // 王炸 is highest
+      description: '王炸'
+    });
+  }
+
+  // Regular bombs - 4 cards of same rank
   for (const [rank, cards] of Array.from(rankMap.entries())) {
-    if (cards.length >= 4) {
+    if (rank !== 15 && cards.length >= 4) {
       plays.push({
         type: CardType.BOMB,
         cards: cards.slice(0, 4),
@@ -82,7 +102,7 @@ function getStraightPlays(cards: Card[]): CardPlayOption[] {
   const plays: CardPlayOption[] = [];
   const rankMap = groupCardsByRank(cards);
   const sortedRanks = Array.from(rankMap.keys())
-    .filter(r => r <= 13) // 不能包含2和王
+    .filter(r => r <= 14 && r !== 15) // 不能包含2和王（rank 15 is joker）
     .sort((a, b) => a - b);
 
   // 查找连续的5张rank序列
@@ -150,12 +170,17 @@ export function getValidPlays(
       return false;
     }
 
-    // 炸弹可以打任何非炸弹
+    // 王炸 can beat anything
+    if (play.mainRank === 999) {
+      return true;
+    }
+
+    // Bombs can beat non-bombs
     if (play.type === CardType.BOMB && lastPlay.type !== CardType.BOMB) {
       return true;
     }
 
-    // 必须是同类型且rank更大
+    // Must be same type and higher rank (except for bombs)
     if (play.type === lastPlay.type && play.cards.length === lastPlay.cards.length) {
       return play.mainRank > lastPlay.mainRank;
     }

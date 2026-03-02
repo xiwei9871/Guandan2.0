@@ -15,6 +15,31 @@ export class CardPlayBot {
       cardButtons.forEach((btn, index) => {
         // 从按钮文本中提取牌的信息
         const text = btn.textContent || '';
+
+        // Check for jokers first
+        if (text.includes('大王')) {
+          cards.push({
+            id: `card-${index}`,
+            suit: 'spades',
+            rank: 15,
+            levelCard: false,
+            isWildcard: false
+          });
+          return;
+        }
+
+        if (text.includes('小王')) {
+          cards.push({
+            id: `card-${index}`,
+            suit: 'hearts',
+            rank: 15,
+            levelCard: false,
+            isWildcard: false
+          });
+          return;
+        }
+
+        // Regular cards
         const suitMatch = text.match(/[♠♥♣♦]/);
         const rankMatch = text.match(/(\d+|J|Q|K|A)/);
 
@@ -112,16 +137,35 @@ export class CardPlayBot {
       const cardSelectionCount = new Map<string, number>();
 
       for (const card of cards) {
-        const suitSymbol = { spades: '♠', hearts: '♥', clubs: '♣', diamonds: '♦' }[card.suit];
-        const rankDisplay = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[card.rank] || card.rank;
-        const cardKey = `${suitSymbol}${rankDisplay}`;
+        let cardKey = '';
+        let searchStrings: string[] = [];
+
+        // Handle jokers
+        if (card.rank === 15) {
+          cardKey = card.suit === 'spades' ? '大王' : '小王';
+          searchStrings = [cardKey];
+        } else {
+          // Regular cards
+          const suitSymbol = { spades: '♠', hearts: '♥', clubs: '♣', diamonds: '♦' }[card.suit];
+          const rankDisplay = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }[card.rank] || card.rank;
+          cardKey = `${suitSymbol}${rankDisplay}`;
+          searchStrings = [suitSymbol, String(rankDisplay)];
+        }
 
         // 获取这种牌已经选择了多少次
         const selectionIndex = cardSelectionCount.get(cardKey) || 0;
         cardSelectionCount.set(cardKey, selectionIndex + 1);
 
-        // 查找所有匹配的按钮，然后选择第n个未被选中的
-        const allCardButtons = this.page.locator('button').filter({ hasText: suitSymbol }).filter({ hasText: String(rankDisplay) });
+        // 查找所有匹配的按钮
+        let allCardButtons;
+        if (card.rank === 15) {
+          // For jokers, search by text
+          allCardButtons = this.page.locator('button').filter({ hasText: cardKey });
+        } else {
+          // For regular cards, search by suit and rank
+          allCardButtons = this.page.locator('button').filter({ hasText: searchStrings[0] }).filter({ hasText: searchStrings[1] });
+        }
+
         const count = await allCardButtons.count();
 
         console.log(`${this.playerName} 查找牌 ${cardKey}, 找到 ${count} 个按钮，选择第 ${selectionIndex + 1} 个`);

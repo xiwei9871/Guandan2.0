@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket 测试</title>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Socket.io 连接测试</h1>
+
+    <div id="status" class="status disconnected">
+        状态: 未连接
+    </div>
+
+    <div>
+        <button onclick="testConnection()">测试连接</button>
+        <button onclick="testCreateRoom()">创建房间</button>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="log" id="log">
+        等待连接...
+    </div>
+
+    <script>
+        const logDiv = document.getElementById('log');
+        const statusDiv = document.getElementById('status');
+
+        function log(message) {
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${time}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = '状态: ✅ 已连接';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '状态: ❌ 未连接';
+            }
+        }
+
+        function clearLog() {
+            logDiv.innerHTML = '';
+        }
+
+        let socket = null;
+
+        function testConnection() {
+            clearLog();
+            log('正在连接到 http://localhost:3003');
+
+            try {
+                socket = io('http://localhost:3003', {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true
+                });
+
+                socket.on('connect', () => {
+                    log(`✅ 连接成功! Socket ID: ${socket.id}`);
+                    updateStatus(true);
+                });
+
+                socket.on('disconnect', () => {
+                    log('❌ 断开连接');
+                    updateStatus(false);
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`❌ 连接错误: ${error.message}`);
+                    log(`错误详情: ${JSON.stringify(error)}`);
+                    updateStatus(false);
+                });
+
+                socket.on('room:updated', (data) => {
+                    log(`📢 收到房间更新事件: ${JSON.stringify(data)}`);
+                });
+
+            } catch (error) {
+                log(`❌ 异常: ${error.message}`);
+                updateStatus(false);
+            }
+        }
+
+        function testCreateRoom() {
+            if (!socket || !socket.connected) {
+                log('❌ 请先连接到服务器');
+                return;
+            }
+
+            log('正在创建房间...');
+            socket.emit('room:create', { playerName: '测试玩家' }, (response) => {
+                if (response && response.success) {
+                    log(`✅ 房间创建成功! 房间号: ${response.roomId}`);
+                } else {
+                    log(`❌ 房间创建失败`);
+                }
+            });
+        }
+
+        // 页面加载时自动测试连接
+        window.onload = () => {
+            log('页面已加载，点击"测试连接"按钮开始测试');
+        };
+    </script>
+</body>
+</html>

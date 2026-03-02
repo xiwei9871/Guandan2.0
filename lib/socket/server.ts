@@ -104,7 +104,7 @@ export function initializeSocketServer(httpServer: HTTPServer) {
 
       // 分配位置和队伍
       const positions: Array<'south' | 'west' | 'north' | 'east'> = ['south', 'west', 'north', 'east'];
-      const teams: Array<'red' | 'blue'> = ['red', 'blue', 'blue', 'red'];
+      const teams: Array<'red' | 'blue'> = ['red', 'blue', 'red', 'blue'];
       const index = players.length;
 
       const player: Player = {

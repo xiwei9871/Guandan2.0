@@ -1,112 +1,94 @@
 import { Page, expect } from '@playwright/test';
 import { TIMEOUTS } from '../fixtures/game-data';
 
-// 等待 Socket 连接成功
+const CONNECTED_LABEL = '\u5df2\u8fde\u63a5\u5230\u670d\u52a1\u5668';
+const CREATE_ROOM_LABEL = '\u521b\u5efa\u623f\u95f4';
+const CREATE_NEW_ROOM_LABEL = '\u521b\u5efa\u65b0\u623f\u95f4';
+const JOIN_ROOM_LABEL = '\u52a0\u5165\u623f\u95f4';
+const READY_LABEL = '\u51c6\u5907';
+
+const CONNECTED_TEXT = new RegExp(CONNECTED_LABEL);
+const CREATE_ROOM_TEXT = new RegExp(`${CREATE_ROOM_LABEL}|${CREATE_NEW_ROOM_LABEL}`);
+const JOIN_ROOM_TEXT = new RegExp(JOIN_ROOM_LABEL);
+const READY_TEXT = new RegExp(READY_LABEL);
+
 export async function waitForSocketConnected(page: Page): Promise<void> {
-  // 等待连接状态指示器变为绿色（已连接）
-  await page.waitForSelector('text=已连接到服务器', { timeout: TIMEOUTS.SOCKET_CONNECT });
-  // 额外等待确保 Socket.io 完全初始化
+  await page.waitForFunction(
+    (connectedLabel: string) => {
+      const bodyText = document.body.innerText || '';
+      return bodyText.includes(connectedLabel);
+    },
+    CONNECTED_LABEL,
+    { timeout: TIMEOUTS.SOCKET_CONNECT }
+  );
+  await expect(page.getByText(CONNECTED_TEXT)).toBeVisible({
+    timeout: TIMEOUTS.SOCKET_CONNECT,
+  });
   await page.waitForTimeout(500);
 }
 
-// 创建房间并返回房间号
 export async function createRoom(page: Page, playerName: string): Promise<string> {
-  // 等待 Socket 连接
   await waitForSocketConnected(page);
-
-  // 填写玩家名称
   await page.fill('#playerName', playerName);
-
-  // 点击创建房间按钮（第一个提交按钮）
-  await page.locator('button[type="submit"]').first().click();
-
-  // 等待跳转到房间页面
+  await page.getByRole('button', { name: CREATE_ROOM_TEXT }).click();
   await page.waitForURL(/\/room\/[A-Z0-9]{6}/, { timeout: TIMEOUTS.ROOM_CREATE });
 
-  // 提取房间号
-  const url = page.url();
-  const roomId = url.split('/').pop() || '';
-
+  const roomId = page.url().split('/').pop() || '';
   expect(roomId).toMatch(/^[A-Z0-9]{6}$/);
-
-  console.log(`✅ Room created: ${roomId} by ${playerName}`);
-
   return roomId;
 }
 
-// 加入房间
 export async function joinRoom(page: Page, roomId: string, playerName: string): Promise<void> {
-  // 等待 Socket 连接
   await waitForSocketConnected(page);
-
-  // 填写玩家名称
   await page.fill('#playerName', playerName);
-
-  // 填写房间号
   await page.fill('#roomId', roomId);
+  await page.getByRole('button', { name: JOIN_ROOM_TEXT }).click();
 
-  // 点击加入房间
-  await page.click('button:has-text("加入房间")');
-
-  // 等待跳转到房间页面或错误显示
   try {
-    // 先等待一下，让服务器处理请求
-    await page.waitForTimeout(1000);
-
-    // 检查是否有错误消息
-    const hasError = await page.locator('text=房间不存在').count() > 0 ||
-                     await page.locator('text=加入房间失败').count() > 0;
-
-    if (hasError) {
-      throw new Error(`Failed to join room ${roomId} - room not found or join failed`);
-    }
-
-    // 检查当前 URL，如果已经在房间页面，等待页面加载完成
-    const currentUrl = page.url();
-    if (currentUrl.includes(`/room/${roomId}`)) {
-      // 已经在房间页面，等待页面内容加载
-      await page.waitForLoadState('networkidle', { timeout: TIMEOUTS.JOIN_ROOM }).catch(() => {});
-      console.log(`✅ ${playerName} joined room ${roomId} (already on page)`);
-    } else {
-      // 等待跳转到房间页面
-      await page.waitForURL(`\/room\/${roomId}`, { timeout: TIMEOUTS.JOIN_ROOM });
-      console.log(`✅ ${playerName} joined room ${roomId}`);
-    }
+    await page.waitForURL(`**/room/${roomId}`, { timeout: TIMEOUTS.JOIN_ROOM });
   } catch (error) {
-    // 截图用于调试
+    const bodyText = await page.locator('body').innerText();
+    const knownError =
+      bodyText.includes('\u65e0\u6cd5\u52a0\u5165\u8be5\u623f\u95f4\u3002') ||
+      bodyText.includes('\u52a0\u5165\u623f\u95f4\u5931\u8d25') ||
+      bodyText.includes('\u623f\u95f4\u4e0d\u5b58\u5728');
+
+    if (knownError) {
+      throw new Error(`Failed to join room ${roomId}`);
+    }
+
     await page.screenshot({ path: `tests/e2e/screenshots/error-join-${playerName}.png` });
     throw error;
   }
 }
 
-// 设置准备状态
 export async function setReady(page: Page): Promise<void> {
-  await page.click('button:has-text("准备")');
-
-  // 等待按钮状态变化
+  await page.getByRole('button', { name: READY_TEXT }).click();
   await page.waitForTimeout(1000);
-
-  console.log('✅ Player ready');
 }
 
-// 截图保存
 export async function saveScreenshot(page: Page, name: string): Promise<string> {
   const path = `tests/e2e/screenshots/${name}`;
   await page.screenshot({ path, fullPage: true });
-  console.log(`📸 Screenshot saved: ${name}`);
   return path;
 }
 
-// 验证页面文本
-export async function expectText(page: Page, text: string): Promise<void> {
+export async function expectText(page: Page, text: string | RegExp): Promise<void> {
   await expect(page.locator('body')).toContainText(text);
 }
 
-// 等待控制台日志
+export async function waitForText(
+  page: Page,
+  text: string | RegExp,
+  timeout = 5000
+): Promise<void> {
+  await expect(page.locator('body')).toContainText(text, { timeout });
+}
+
 export async function waitForConsoleLog(page: Page, message: string): Promise<void> {
   await page.waitForFunction(
     (msg: string) => {
-      const logs = (window as any).consoleLogs || [];
+      const logs = (window as { consoleLogs?: string[] }).consoleLogs || [];
       return logs.some((log: string) => log.includes(msg));
     },
     message,

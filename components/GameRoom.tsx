@@ -1,13 +1,17 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/constants';
 import { Player, RoomState, Card } from '@/lib/types';
+import { canCurrentPlayerPass, canCurrentPlayerPlay } from '@/lib/game/roundRules';
+import { isRoomOwner } from '@/lib/game/lobbyRules';
+import { getOrCreatePlayerClientId } from '@/lib/clientIdentity';
 import PlayerCard from './game/PlayerCard';
 import HandCards from './game/HandCards';
 import CenterPlayArea from './game/CenterPlayArea';
+import SettlementPanel from './game/SettlementPanel';
 
 interface GameRoomProps {
   roomId: string;
@@ -26,6 +30,7 @@ export default function GameRoom({ roomId }: GameRoomProps) {
   const safeRoomState = roomState || {
     id: roomId,
     roomId: roomId,
+    ownerId: null,
     name: '',
     maxPlayers: 4,
     status: 'waiting',
@@ -61,9 +66,11 @@ export default function GameRoom({ roomId }: GameRoomProps) {
     }
 
     // Join room
+    const clientId = getOrCreatePlayerClientId();
+
     socket.emit(
       SOCKET_EVENTS.CLIENT.JOIN_ROOM,
-      { roomId, playerName },
+      { roomId, playerName, clientId },
       (response: { success: boolean; playerId?: string; roomState?: RoomState; error?: string }) => {
         if (response.success && response.playerId) {
           setPlayerId(response.playerId);
@@ -174,25 +181,42 @@ export default function GameRoom({ roomId }: GameRoomProps) {
   };
 
   const isCurrentPlayerTurn = safeRoomState.players && playerId ? safeRoomState.currentTurn === safeRoomState.players.findIndex(p => p.id === playerId) : false;
-  const canStartGame = safeRoomState.players.length === 4 && safeRoomState.players.every(p => p.isReady);
+  const allPlayersReady = safeRoomState.players.length === 4 && safeRoomState.players.every(p => p.isReady);
+  const canStartNextRound = safeRoomState.players.length === 4;
   const currentPlayer = safeRoomState.players.find(p => p.id === playerId);
+  const currentPlayerIsOwner = isRoomOwner(
+    safeRoomState.ownerId,
+    currentPlayer?.clientId || currentPlayer?.id || null
+  );
+  const canStartGame = currentPlayerIsOwner && allPlayersReady;
+  const showWaitingForOwner = roomState?.gamePhase === 'waiting' && allPlayersReady && !!currentPlayer && !currentPlayerIsOwner;
+  const showReadyWaitingState =
+    roomState?.gamePhase === 'waiting' &&
+    !!currentPlayer?.isReady &&
+    !canStartGame;
 
-  // 判断是否可以出牌：
-  // 新一轮开始的判断：其他三个位置都已出牌或过牌，当前玩家可以重新出牌
-  const lastPlays = safeRoomState.lastPlays || { north: null, south: null, east: null, west: null };
-  const currentPlayerPos = currentPlayer?.position;
-
-  // 使用 Object.entries 来正确匹配位置和出牌记录
-  const otherPlays = Object.entries(lastPlays)
-    .filter(([pos]) => pos !== currentPlayerPos)
-    .map(([, play]) => play);
-
-  // 如果其他三个位置都有出牌记录（包括过牌），说明一轮完成，新一轮开始
-  const isNewRound = otherPlays.length === 3 && otherPlays.every(p => p !== null);
-
-  // 如果新一轮开始，或者当前玩家不是上一个出牌的人，则可以出牌
   const currentPlayerIndex = safeRoomState.players.findIndex(p => p.id === playerId);
-  const canPlay = isNewRound || !safeRoomState.lastPlay || safeRoomState.lastPlayPlayer !== currentPlayerIndex;
+  const activePositions = safeRoomState.players
+    .filter((player) => player.cardsRemaining > 0)
+    .map((player) => player.position);
+  const canPlay = canCurrentPlayerPlay({
+    lastPlay: safeRoomState.lastPlay,
+    lastPlayPlayer: safeRoomState.lastPlayPlayer,
+    currentPlayerIndex,
+    currentPlayerPosition: currentPlayer?.position,
+    lastPlays: safeRoomState.lastPlays,
+    activePositions,
+    players: safeRoomState.players,
+  });
+  const canPass = canCurrentPlayerPass({
+    lastPlay: safeRoomState.lastPlay,
+    lastPlayPlayer: safeRoomState.lastPlayPlayer,
+    currentPlayerIndex,
+    currentPlayerPosition: currentPlayer?.position,
+    lastPlays: safeRoomState.lastPlays,
+    activePositions,
+    players: safeRoomState.players,
+  });
 
   if (error && !roomState) {
     return (
@@ -240,6 +264,15 @@ export default function GameRoom({ roomId }: GameRoomProps) {
               {roomState.gamePhase === 'finished' && '游戏结束'}
             </span>
           )}
+          {roomState.gamePhase === 'finished' && (
+            <button
+              onClick={handleStartGame}
+              disabled={!isConnected || !canStartNextRound}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition transform hover:scale-105 text-sm"
+            >
+              开始下一局
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${isConnected ? 'bg-green-100' : 'bg-red-100'}`}>
@@ -266,11 +299,12 @@ export default function GameRoom({ roomId }: GameRoomProps) {
       {/* North Player - 10vh */}
       <div className="h-[10vh] px-4 flex items-center justify-center flex-shrink-0">
         {roomState.players.find(p => p.position === 'north') ? (
-          <div className="w-full max-w-xs">
+          <div className="w-full max-w-[220px] sm:max-w-[240px]">
             <PlayerCard
               player={roomState.players.find(p => p.position === 'north')!}
               isCurrentTurn={roomState.currentTurn === roomState.players.findIndex(p => p.position === 'north')}
               isSelf={currentPlayer?.position === 'north'}
+              compact
             />
           </div>
         ) : (
@@ -358,6 +392,7 @@ export default function GameRoom({ roomId }: GameRoomProps) {
           )}
           {roomState.gamePhase === 'waiting' && canStartGame && (
             <button
+              data-testid="start-game-button"
               onClick={handleStartGame}
               disabled={!isConnected}
               className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 transition transform hover:scale-105 text-sm"
@@ -367,12 +402,27 @@ export default function GameRoom({ roomId }: GameRoomProps) {
           )}
         </div>
 
+        {showReadyWaitingState && (
+          <div
+            data-testid={showWaitingForOwner ? 'waiting-for-owner' : 'waiting-for-players'}
+            className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-center text-sm text-amber-800 flex-shrink-0"
+          >
+            {showWaitingForOwner ? '等待房主开始游戏' : '已准备，等待其他玩家'}
+          </div>
+        )}
+
         {/* Empty Player Slots Notice */}
         {roomState.players.length < 4 && roomState.gamePhase === 'waiting' && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex-shrink-0">
             <p className="text-center text-blue-800 text-sm">
               等待更多玩家加入... ({roomState.players.length}/4)
             </p>
+          </div>
+        )}
+
+        {roomState.gamePhase === 'finished' && (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <SettlementPanel roomState={roomState} />
           </div>
         )}
 
@@ -385,7 +435,8 @@ export default function GameRoom({ roomId }: GameRoomProps) {
               onPlayCards={handlePlayCards}
               onPass={handlePass}
               isCurrentTurn={isCurrentPlayerTurn}
-              canPlay={!roomState.lastPlay || roomState.lastPlayPlayer !== roomState.players.findIndex(p => p.id === playerId)}
+              canPlay={canPlay}
+              canPass={canPass}
             />
           </div>
         )}

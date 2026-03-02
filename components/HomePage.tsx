@@ -4,6 +4,7 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/constants';
+import { getOrCreatePlayerClientId } from '@/lib/clientIdentity';
 
 export default function HomePage() {
   const [playerName, setPlayerName] = useState('');
@@ -37,10 +38,11 @@ export default function HomePage() {
     }
 
     setIsLoading(true);
+    const clientId = getOrCreatePlayerClientId();
 
     socket?.emit(
       SOCKET_EVENTS.CLIENT.CREATE_ROOM,
-      { playerName },
+      { playerName, clientId },
       (response: { success: boolean; roomId?: string; error?: string }) => {
         setIsLoading(false);
 
@@ -74,10 +76,11 @@ export default function HomePage() {
     }
 
     setIsLoading(true);
+    const clientId = getOrCreatePlayerClientId();
 
     socket?.emit(
       SOCKET_EVENTS.CLIENT.JOIN_ROOM,
-      { roomId, playerName },
+      { roomId, playerName, clientId },
       (response: { success: boolean; error?: string }) => {
         setIsLoading(false);
 

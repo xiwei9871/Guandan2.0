@@ -10,6 +10,7 @@ interface HandCardsProps {
   onPass: () => void;
   isCurrentTurn: boolean;
   canPlay: boolean;
+  canPass: boolean;
 }
 
 const suitSymbols: Record<string, string> = {
@@ -67,6 +68,7 @@ export default function HandCards({
   onPass,
   isCurrentTurn,
   canPlay,
+  canPass,
 }: HandCardsProps) {
   const { toggleCard, clearSelection, isCardSelected, getSelectedCards } = useCardSelection();
 
@@ -80,6 +82,8 @@ export default function HandCards({
   };
 
   const handlePass = () => {
+    if (!canPass) return;
+
     onPass();
     clearSelection();
   };
@@ -226,7 +230,7 @@ export default function HandCards({
             出牌 ({selectedCardObjects.length})
           </button>
 
-          {canPlay && (
+          {canPass && (
             <button
               onClick={handlePass}
               className="px-4 py-2 sm:px-6 sm:py-2 rounded-lg font-medium bg-gray-500 text-white hover:bg-gray-600 transition-all duration-200 text-sm sm:text-base"

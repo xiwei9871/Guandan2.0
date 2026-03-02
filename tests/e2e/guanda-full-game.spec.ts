@@ -82,9 +82,24 @@ test.describe('掼蛋游戏完整流程测试', () => {
     await setReady(page3);
     await setReady(page4);
 
-    // 等待游戏开始
-    await page1.waitForTimeout(3000);
+    // 等待"开始游戏"按钮出现
+    await page1.waitForTimeout(2000);
     await saveScreenshot(page1, '03-all-ready.png');
+
+    // Phase 3.5: 点击开始游戏按钮
+    console.log('\n=== Phase 3.5: Starting Game ===');
+
+    try {
+      // 等待并点击"开始游戏"按钮
+      await page1.waitForSelector('button:has-text("开始游戏")', { timeout: 5000 });
+      await page1.click('button:has-text("开始游戏")');
+      console.log('✅ Clicked start game button');
+
+      // 等待游戏状态更新
+      await page1.waitForTimeout(3000);
+    } catch (error) {
+      console.log('⚠️ Could not find or click start game button');
+    }
 
     // Phase 4: 验证游戏开始和发牌
     console.log('\n=== Phase 4: Game Start ===');
