@@ -137,10 +137,247 @@ const waitingRoomStateWithStableOwner: RoomState = {
   })),
 };
 
+const waitingRoomStateWithOnePlayer: RoomState = {
+  ...waitingRoomState,
+  players: [waitingRoomState.players[0]],
+};
+
+const playingRoomState: RoomState = {
+  ...waitingRoomState,
+  gamePhase: 'playing',
+  lastPlays: {
+    north: {
+      playerId: 'p3',
+      cards: [
+        {
+          id: 'play-1',
+          suit: 'hearts',
+          rank: 9,
+          levelCard: false,
+          isWildcard: false,
+        },
+      ],
+      type: 'single',
+      mainRank: 9,
+      timestamp: 1,
+    },
+    south: null,
+    east: null,
+    west: null,
+  },
+  players: waitingRoomState.players.map((player, index) => ({
+    ...player,
+    hand:
+      index === 0
+        ? [
+            {
+              id: 'card-1',
+              suit: 'spades',
+              rank: 14,
+              levelCard: false,
+              isWildcard: false,
+            },
+          ]
+        : [],
+  })),
+};
+
+const tributingGivingRoomState: RoomState = {
+  ...waitingRoomState,
+  gamePhase: 'tributing',
+  currentTurn: 3,
+  players: waitingRoomState.players.map((player, index) => ({
+    ...player,
+    hand:
+      index === 3
+        ? [
+            {
+              id: 'max-tribute',
+              suit: 'spades',
+              rank: 13,
+              levelCard: false,
+              isWildcard: false,
+            },
+            {
+              id: 'other-card',
+              suit: 'clubs',
+              rank: 9,
+              levelCard: false,
+              isWildcard: false,
+            },
+          ]
+        : [],
+    cardsRemaining: index === 3 ? 2 : 0,
+  })),
+  tribute: {
+    fromPlayer: 'p4',
+    toPlayer: 'p1',
+    cards: [],
+    phase: 'giving',
+    mode: 'single',
+    exempt: false,
+    pendingGives: [
+      {
+        fromPlayerId: 'p4',
+        toPlayerId: 'p1',
+        card: {
+          id: 'max-tribute',
+          suit: 'spades',
+          rank: 13,
+          levelCard: false,
+          isWildcard: false,
+        },
+      },
+    ],
+    resolvedGives: [],
+    pendingReturns: [],
+    resolvedReturns: [],
+    revealedActions: [],
+    leadPlayerId: 'p4',
+  } as any,
+};
+
+const tributingReturningRoomState: RoomState = {
+  ...tributingGivingRoomState,
+  currentTurn: 0,
+  players: waitingRoomState.players.map((player, index) => ({
+    ...player,
+    hand:
+      index === 0
+        ? [
+            {
+              id: 'return-card',
+              suit: 'clubs',
+              rank: 9,
+              levelCard: false,
+              isWildcard: false,
+            },
+          ]
+        : [],
+    cardsRemaining: index === 0 ? 1 : 0,
+  })),
+  tribute: {
+    fromPlayer: 'p4',
+    toPlayer: 'p1',
+    cards: [
+      {
+        id: 'tribute-card',
+        suit: 'spades',
+        rank: 13,
+        levelCard: false,
+        isWildcard: false,
+      },
+    ],
+    phase: 'returning',
+    mode: 'single',
+    exempt: false,
+    pendingGives: [
+      {
+        fromPlayerId: 'p4',
+        toPlayerId: 'p1',
+        card: {
+          id: 'tribute-card',
+          suit: 'spades',
+          rank: 13,
+          levelCard: false,
+          isWildcard: false,
+        },
+      },
+    ],
+    resolvedGives: [
+      {
+        fromPlayerId: 'p4',
+        toPlayerId: 'p1',
+        card: {
+          id: 'tribute-card',
+          suit: 'spades',
+          rank: 13,
+          levelCard: false,
+          isWildcard: false,
+        },
+      },
+    ],
+    pendingReturns: [
+      {
+        fromPlayerId: 'p1',
+        toPlayerId: 'p4',
+      },
+    ],
+    resolvedReturns: [],
+    revealedActions: [
+      {
+        kind: 'tribute',
+        fromPlayerId: 'p4',
+        toPlayerId: 'p1',
+        card: {
+          id: 'tribute-card',
+          suit: 'spades',
+          rank: 13,
+          levelCard: false,
+          isWildcard: false,
+        },
+      },
+    ],
+    leadPlayerId: 'p4',
+  } as any,
+};
+
+const tributingDoubleGivingRoomState: RoomState = {
+  ...waitingRoomState,
+  gamePhase: 'tributing',
+  currentTurn: -1,
+  players: waitingRoomState.players.map((player, index) => ({
+    ...player,
+    hand:
+      index === 1
+        ? [
+            {
+              id: 'west-level',
+              suit: 'clubs',
+              rank: 5,
+              levelCard: true,
+              isWildcard: false,
+            },
+          ]
+        : index === 3
+          ? [
+              {
+                id: 'east-k',
+                suit: 'spades',
+                rank: 13,
+                levelCard: false,
+                isWildcard: false,
+              },
+            ]
+          : [],
+    cardsRemaining: index === 1 || index === 3 ? 1 : 0,
+  })),
+  tribute: {
+    fromPlayer: null,
+    toPlayer: null,
+    cards: [],
+    phase: 'giving',
+    mode: 'double',
+    exempt: false,
+    giverOrder: ['p2', 'p4'],
+    receiverOrder: ['p1', 'p3'],
+    pendingGives: [
+      { fromPlayerId: 'p2', toPlayerId: null },
+      { fromPlayerId: 'p4', toPlayerId: null },
+    ],
+    resolvedGives: [],
+    pendingReturns: [],
+    resolvedReturns: [],
+    revealedActions: [],
+    leadPlayerId: null,
+  } as any,
+};
+
 function renderGameRoom(
   roomState: RoomState,
   playerId: string,
-  playerCardMock: (props: any) => string = () => 'PLAYER_CARD'
+  playerCardMock: (props: any) => string = () => 'PLAYER_CARD',
+  handCardsMock: (props: any) => string = () => 'HAND_CARDS'
 ) {
   const mockUseState = jest
     .fn()
@@ -174,7 +411,7 @@ function renderGameRoom(
 
   jest.doMock('../game/HandCards', () => ({
     __esModule: true,
-    default: () => 'HAND_CARDS',
+    default: (props: any) => handCardsMock(props),
   }));
 
   jest.doMock('../game/CenterPlayArea', () => ({
@@ -359,5 +596,104 @@ describe('GameRoom settlement view', () => {
     );
 
     expect(html).toContain('PLAYER_CARD:north:compact');
+  });
+
+  it('maps the current player to the bottom seat regardless of original position', () => {
+    const html = renderGameRoom(waitingRoomState, 'p3');
+
+    expect(html).toContain('data-testid="seat-self-bottom"');
+  });
+
+  it('renders an integrated table shell', () => {
+    const html = renderGameRoom(waitingRoomState, 'p1');
+
+    expect(html).toContain('data-testid="integrated-table"');
+  });
+
+  it('shows the waiting-ready copy only once', () => {
+    const html = renderGameRoom(waitingRoomState, 'p1');
+    const waitingReadyCount = (html.match(/等待玩家准备/g) || []).length;
+
+    expect(waitingReadyCount).toBe(1);
+  });
+
+  it('shows only one waiting prompt when the room is still filling', () => {
+    const html = renderGameRoom(waitingRoomStateWithOnePlayer, 'p1');
+    const waitingPromptCount = (html.match(/等待更多玩家加入/g) || []).length;
+
+    expect(waitingPromptCount).toBe(1);
+  });
+
+  it('renders the current hand inside the integrated table shell', () => {
+    const html = renderGameRoom(playingRoomState, 'p1');
+
+    expect(html).toContain('data-testid="table-hand-zone"');
+  });
+
+  it('passes relative seat labels and play info into the integrated seat cards', () => {
+    const html = renderGameRoom(
+      playingRoomState,
+      'p1',
+      (props: any) => `PLAYER_CARD:${props.displayPosition}:${props.playInfo?.cards?.length || 0}`
+    );
+
+    expect(html).toContain('PLAYER_CARD:north:1');
+    expect(html).toContain('PLAYER_CARD:south:0');
+  });
+
+  it('uses the same seat width for all four integrated seat slots', () => {
+    const html = renderGameRoom(waitingRoomState, 'p1');
+    const uniformSeatWidthCount = (html.match(/w-\[190px\]/g) || []).length;
+
+    expect(uniformSeatWidthCount).toBe(4);
+  });
+
+  it('shows a tribute prompt and tribute action for the active tribute giver', () => {
+    const html = renderGameRoom(
+      tributingGivingRoomState,
+      'p4',
+      () => 'PLAYER_CARD',
+      (props: any) => `HAND_CARDS:${props.mode}:${props.submitLabel}:${props.canSubmit}`
+    );
+
+    expect(html).toContain('data-testid="tribute-status"');
+    expect(html).toContain('HAND_CARDS:tribute:tribute:true');
+  });
+
+  it('allows either double-tribute giver to submit while both tribute selections are pending', () => {
+    const westHtml = renderGameRoom(
+      tributingDoubleGivingRoomState,
+      'p2',
+      () => 'PLAYER_CARD',
+      (props: any) => `HAND_CARDS:${props.mode}:${props.submitLabel}:${props.canSubmit}`
+    );
+    const eastHtml = renderGameRoom(
+      tributingDoubleGivingRoomState,
+      'p4',
+      () => 'PLAYER_CARD',
+      (props: any) => `HAND_CARDS:${props.mode}:${props.submitLabel}:${props.canSubmit}`
+    );
+
+    expect(westHtml).toContain('HAND_CARDS:tribute:tribute:true');
+    expect(eastHtml).toContain('HAND_CARDS:tribute:tribute:true');
+  });
+
+  it('shows a tribute prompt and return action for the active return player', () => {
+    const html = renderGameRoom(
+      tributingReturningRoomState,
+      'p1',
+      () => 'PLAYER_CARD',
+      (props: any) => `HAND_CARDS:${props.mode}:${props.submitLabel}:${props.canSubmit}`
+    );
+
+    expect(html).toContain('data-testid="tribute-status"');
+    expect(html).toContain('HAND_CARDS:tribute:return:true');
+  });
+
+  it('renders revealed tribute actions in the public tribute status area', () => {
+    const html = renderGameRoom(tributingReturningRoomState, 'p2');
+
+    expect(html).toContain('data-testid="tribute-status"');
+    expect(html).toContain('data-testid="tribute-action-log"');
   });
 });

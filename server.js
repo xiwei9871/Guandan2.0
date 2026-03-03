@@ -3,12 +3,18 @@ const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
 const { detectCardType, canBeat } = require('./lib/game/cardChecker.runtime.js');
-const { isRoomOwner, resolveRoomOwnerId } = require('./lib/game/lobbyRules.runtime.js');
+const { isRoomOwner } = require('./lib/game/lobbyRules.runtime.js');
+const { createLobby } = require('./lib/game/serverLobby.runtime.js');
 const {
   getNextTurnIndex,
   shouldRequireBeat,
   applyRankingAndSettlement,
 } = require('./lib/game/serverRoundState.runtime.js');
+const {
+  beginTributeRound,
+  applyTribute,
+  applyReturnTribute,
+} = require('./lib/game/serverTribute.runtime.js');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -39,8 +45,8 @@ app.prepare().then(() => {
   });
 
   // Socket.io logic
-  const rooms = new Map();
-  const roomPlayers = new Map();
+  const lobby = createLobby();
+  const { rooms, roomPlayers } = lobby;
 
   function normalizeRoomId(roomId) {
     return String(roomId || '')
@@ -261,6 +267,13 @@ app.prepare().then(() => {
       socket.data.player = player;
       rooms.set(roomId, room);
       roomPlayers.set(roomId, [player]);
+      const createdLobbyState = lobby.createRoom({
+        roomId,
+        playerName,
+        socketId: socket.id,
+        clientId,
+      });
+      socket.data.player = createdLobbyState.player;
       socket.join(roomId);
 
       console.log(`Room created: ${roomId} by ${playerName}`);
@@ -271,7 +284,7 @@ app.prepare().then(() => {
       }
 
       // 广播房间更新事件
-      const roomState = createRoomState(room, [player]);
+      const roomState = createRoomState(createdLobbyState.room, [createdLobbyState.player]);
       socket.emit('room:updated', roomState);
     });
 
@@ -300,6 +313,62 @@ app.prepare().then(() => {
           callback({ success: false, error: '房间已开始游戏' });
         }
         return;
+      }
+
+      const reconnectingPlayer = lobby
+        .getPlayers(roomId)
+        .find((player) => player.clientId === stableClientId || player.id === socket.id);
+
+      try {
+        const { room: joinedRoom, player, players, rejoined } = lobby.joinRoom({
+          roomId,
+          playerName,
+          socketId: socket.id,
+          clientId,
+        });
+
+        if (reconnectingPlayer && reconnectingPlayer.id !== socket.id) {
+          const previousSocket = io.sockets.sockets.get(reconnectingPlayer.id);
+          if (previousSocket) {
+            previousSocket.leave(roomId);
+            previousSocket.data.roomId = null;
+            previousSocket.data.player = null;
+          }
+        }
+
+        socket.data.roomId = roomId;
+        socket.data.player = player;
+        socket.join(roomId);
+
+        const roomState = createRoomState(joinedRoom, players);
+        if (callback && typeof callback === 'function') {
+          callback({
+            success: true,
+            playerId: player.id,
+            roomState: roomState
+          });
+        }
+
+        if (rejoined) {
+          console.log(`${playerName} re-joined room ${roomId} (matched by stable client id)`);
+          io.to(roomId).emit('room:updated', roomState);
+          return;
+        }
+
+        console.log(`${playerName} joined room ${roomId}`);
+        io.to(roomId).emit('room:playerJoined', { player, roomState });
+        io.to(roomId).emit('room:updated', roomState);
+        return;
+      } catch (error) {
+        if (error && error.code === 'ROOM_FULL') {
+          socket.emit('error', '房间已满');
+          if (callback && typeof callback === 'function') {
+            callback({ success: false, error: '房间已满' });
+          }
+          return;
+        }
+
+        throw error;
       }
 
       const players = roomPlayers.get(roomId) || [];
@@ -469,15 +538,12 @@ app.prepare().then(() => {
       updatedPlayers.forEach(p => {
         p.isReady = false; // Reset ready state
         p.cardsRemaining = p.hand.length;
-        delete p.rank;
       });
 
       roomPlayers.set(roomId, updatedPlayers);
 
       // Update room properties
       room.status = 'playing';
-      room.gamePhase = 'playing';
-      room.currentTurn = 0;
       room.dealer = 0;
       room.scores = { red: 0, blue: 0 };
       room.lastPlay = null;
@@ -488,6 +554,18 @@ app.prepare().then(() => {
         east: null,
         west: null,
       };
+
+      if (isFinishedRoundRestart) {
+        beginTributeRound(room, updatedPlayers);
+      } else {
+        room.gamePhase = 'playing';
+        room.currentTurn = 0;
+        room.tribute = null;
+      }
+
+      updatedPlayers.forEach((player) => {
+        delete player.rank;
+      });
       room.result = null;
 
       // Create room state
@@ -574,7 +652,7 @@ app.prepare().then(() => {
       const typeResult = detectCardType(selectedCards);
       if (!typeResult.valid || !typeResult.type) {
         if (callback && typeof callback === 'function') {
-          callback({ success: false, error: '闈炴硶鐗屽瀷' });
+          callback({ success: false, error: '非法牌型' });
         }
         return;
       }
@@ -767,63 +845,126 @@ app.prepare().then(() => {
       console.log(`✅ Player ${players[playerIndex].name} passed`);
     });
 
+    socket.on('game:tribute', ({ roomId, playerId, cardId }, callback) => {
+      roomId = normalizeRoomId(roomId);
+      console.log(`[DEBUG] game:tribute - Room: ${roomId}, Player: ${playerId}, Card: ${cardId}`);
+
+      const room = rooms.get(roomId);
+      const players = roomPlayers.get(roomId);
+
+      if (!room || !players) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '房间不存在' });
+        }
+        return;
+      }
+
+      try {
+        applyTribute(room, players, {
+          fromPlayerId: playerId,
+          cardId,
+        });
+      } catch (error) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: error.message || '进贡失败' });
+        }
+        return;
+      }
+
+      const roomState = createRoomState(room, players);
+      io.to(roomId).emit('room:updated', roomState);
+      io.to(roomId).emit('game:stateChanged', roomState);
+
+      if (callback && typeof callback === 'function') {
+        callback({ success: true, roomState });
+      }
+    });
+
+    socket.on('game:returnTribute', ({ roomId, playerId, cardId }, callback) => {
+      roomId = normalizeRoomId(roomId);
+      console.log(`[DEBUG] game:returnTribute - Room: ${roomId}, Player: ${playerId}, Card: ${cardId}`);
+
+      const room = rooms.get(roomId);
+      const players = roomPlayers.get(roomId);
+
+      if (!room || !players) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: '房间不存在' });
+        }
+        return;
+      }
+
+      try {
+        applyReturnTribute(room, players, {
+          fromPlayerId: playerId,
+          cardId,
+        });
+      } catch (error) {
+        if (callback && typeof callback === 'function') {
+          callback({ success: false, error: error.message || '还贡失败' });
+        }
+        return;
+      }
+
+      const roomState = createRoomState(room, players);
+      io.to(roomId).emit('room:updated', roomState);
+      io.to(roomId).emit('game:stateChanged', roomState);
+
+      if (callback && typeof callback === 'function') {
+        callback({ success: true, roomState });
+      }
+    });
+
     // Leave room
-    socket.on('room:leave', () => {
-      handleLeave(socket);
+    socket.on('room:leave', (_, callback) => {
+      handleLeave(socket, 'leave');
+      if (callback && typeof callback === 'function') {
+        callback({ success: true });
+      }
     });
 
     // Disconnect
     socket.on('disconnect', () => {
       console.log(`Client disconnected: ${socket.id}`);
-      handleLeave(socket);
+      handleLeave(socket, 'disconnect');
     });
 
-    // Track room creators - don't delete room when creator temporarily disconnects
-    const roomCreators = new Map();
-
-    function handleLeave(socket) {
+    function handleLeave(socket, reason) {
       const roomId = socket.data.roomId;
       const player = socket.data.player;
 
-      if (roomId && player) {
-        socket.leave(roomId);
-        const players = roomPlayers.get(roomId) || [];
-        const filteredPlayers = players.filter(p => p.id !== player.id);
-
-        if (filteredPlayers.length === 0) {
-          // Only delete room if it's been empty for more than 30 seconds
-          // This allows players to reconnect during page navigation
-          const roomCreatedAt = rooms.get(roomId)?.createdAt;
-          const now = Date.now();
-
-          if (roomCreatedAt && (now - roomCreatedAt) > 30000) {
-            // Room has been empty for more than 30 seconds, delete it
-            rooms.delete(roomId);
-            roomPlayers.delete(roomId);
-            roomCreators.delete(roomId);
-            console.log(`${player.name} left room ${roomId} - room deleted (empty for >30s)`);
-          } else {
-            // Room is recently created or empty for less than 30 seconds, keep it
-            roomPlayers.set(roomId, []);
-            const room = rooms.get(roomId);
-            if (room) {
-              room.ownerId = null;
-              rooms.set(roomId, room);
-            }
-            console.log(`${player.name} left room ${roomId} - room kept (recently created/reconnecting)`);
-          }
-        } else {
-          roomPlayers.set(roomId, filteredPlayers);
-          const room = rooms.get(roomId);
-          if (room) {
-            room.ownerId = resolveRoomOwnerId(room.ownerId, filteredPlayers);
-            rooms.set(roomId, room);
-          }
-          const roomState = createRoomState(room, filteredPlayers);
-          io.to(roomId).emit('room:playerLeft', { playerId: player.id, roomState });
-          console.log(`${player.name} left room ${roomId}`);
-        }
+      if (!roomId || !player) {
+        return;
       }
+
+      if (reason === 'disconnect') {
+        lobby.disconnectPlayer({
+          roomId,
+          socketId: socket.id,
+        });
+        socket.data.roomId = null;
+        socket.data.player = null;
+        return;
+      }
+
+      socket.leave(roomId);
+      const { room, players } = lobby.leavePlayer({
+        roomId,
+        socketId: socket.id,
+        clientId: player.clientId,
+      });
+
+      socket.data.roomId = null;
+      socket.data.player = null;
+
+      if (!room) {
+        return;
+      }
+
+      const roomState = createRoomState(room, players);
+      io.to(roomId).emit('room:playerLeft', { playerId: player.id, roomState });
+      io.to(roomId).emit('room:updated', roomState);
+      console.log(`${player.name} left room ${roomId}`);
     }
   });
 

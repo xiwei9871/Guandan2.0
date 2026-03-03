@@ -1,19 +1,11 @@
 'use client';
 
-import { RoomState, Position } from '@/lib/types';
-import PlayedCards from './PlayedCards';
+import { RoomState } from '@/lib/types';
 
 interface CenterPlayAreaProps {
   roomState: RoomState;
   currentPlayerId: string;
 }
-
-const positionNames: Record<Position, string> = {
-  south: '南',
-  west: '西',
-  north: '北',
-  east: '东',
-};
 
 function getGamePhaseMessage(phase: string): string {
   switch (phase) {
@@ -22,132 +14,34 @@ function getGamePhaseMessage(phase: string): string {
     case 'tributing':
       return '进贡阶段';
     case 'playing':
-      return '游戏进行中';
+      return '本轮进行中';
     case 'finished':
-      return '游戏结束';
+      return '本局结束';
     default:
       return '等待开始';
   }
 }
 
-export default function CenterPlayArea({ roomState, currentPlayerId }: CenterPlayAreaProps) {
-  const { lastPlays, currentTurn, gamePhase, players, currentLevel } = roomState;
-
-  // Get player info for each position
-  const getPlayerByPosition = (position: Position) => {
-    return players.find(p => p.position === position);
-  };
-
-  // Get play info for each position
-  const getPlayByPosition = (position: Position) => {
-    if (!lastPlays) return null;
-    return lastPlays[position] || null;
-  };
-
-  // Check if a position is the current turn
-  const isPositionCurrentTurn = (position: Position) => {
-    const player = getPlayerByPosition(position);
-    return player ? players.indexOf(player) === currentTurn : false;
-  };
+export default function CenterPlayArea({ roomState }: CenterPlayAreaProps) {
+  const { gamePhase, currentLevel, currentTurn, players } = roomState;
+  const currentTurnPlayer = typeof currentTurn === 'number' ? players[currentTurn] : null;
 
   return (
-    <div className="relative w-full h-full min-h-[400px] bg-gradient-to-br from-green-200 to-green-300 border-4 border-green-400 rounded-lg shadow-inner overflow-hidden">
-      {/* Center Status Message */}
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-        <div className="bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-md">
-          <p className="text-sm font-semibold text-gray-700 text-center">
-            {getGamePhaseMessage(gamePhase)}
-          </p>
-          {gamePhase === 'playing' && (
-            <p className="text-xs text-gray-500 text-center mt-1">
-              当前级牌: {currentLevel}
-            </p>
-          )}
+    <div className="relative h-full w-full">
+      <div className="absolute inset-[9%] rounded-[50%] border border-slate-900/10 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.18)_0%,_rgba(255,255,255,0.05)_48%,_rgba(15,23,42,0.08)_100%)] shadow-[inset_0_8px_24px_rgba(255,255,255,0.15),inset_0_-20px_40px_rgba(15,23,42,0.08)]" />
+
+      <div className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2">
+        <div className="rounded-[28px] bg-white/90 px-5 py-3 text-center shadow-lg backdrop-blur">
+          <p className="text-sm font-semibold text-slate-700">{getGamePhaseMessage(gamePhase)}</p>
+          <p className="mt-1 text-xs text-slate-500">级牌 {currentLevel > 13 ? 'A' : currentLevel}</p>
         </div>
+
+        {gamePhase === 'playing' && currentTurnPlayer && (
+          <div className="rounded-full bg-slate-900/70 px-3 py-1 text-xs font-medium text-white shadow">
+            轮到 {currentTurnPlayer.name}
+          </div>
+        )}
       </div>
-
-      {/* North Position - Top Center */}
-      {(() => {
-        const play = getPlayByPosition('north');
-        const player = getPlayerByPosition('north');
-        if (!play && !player) return null;
-        return (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
-            <PlayedCards
-              cards={play?.cards || []}
-              playerName={player?.name || positionNames.north}
-              position="north"
-              isPass={play?.isPass || false}
-              isCurrentPlayer={isPositionCurrentTurn('north')}
-              currentLevel={currentLevel}
-            />
-          </div>
-        );
-      })()}
-
-      {/* West Position - Left Center */}
-      {(() => {
-        const play = getPlayByPosition('west');
-        const player = getPlayerByPosition('west');
-        if (!play && !player) return null;
-        return (
-          <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-            <PlayedCards
-              cards={play?.cards || []}
-              playerName={player?.name || positionNames.west}
-              position="west"
-              isPass={play?.isPass || false}
-              isCurrentPlayer={isPositionCurrentTurn('west')}
-              currentLevel={currentLevel}
-            />
-          </div>
-        );
-      })()}
-
-      {/* East Position - Right Center */}
-      {(() => {
-        const play = getPlayByPosition('east');
-        const player = getPlayerByPosition('east');
-        if (!play && !player) return null;
-        return (
-          <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-            <PlayedCards
-              cards={play?.cards || []}
-              playerName={player?.name || positionNames.east}
-              position="east"
-              isPass={play?.isPass || false}
-              isCurrentPlayer={isPositionCurrentTurn('east')}
-              currentLevel={currentLevel}
-            />
-          </div>
-        );
-      })()}
-
-      {/* South Position - Bottom Center */}
-      {(() => {
-        const play = getPlayByPosition('south');
-        const player = getPlayerByPosition('south');
-        if (!play && !player) return null;
-        return (
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <PlayedCards
-              cards={play?.cards || []}
-              playerName={player?.name || positionNames.south}
-              position="south"
-              isPass={play?.isPass || false}
-              isCurrentPlayer={isPositionCurrentTurn('south')}
-              currentLevel={currentLevel}
-            />
-          </div>
-        );
-      })()}
-
-      {/* Empty state when no plays and game is starting */}
-      {!lastPlays && gamePhase === 'playing' && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-green-800 text-opacity-60 text-sm">等待出牌...</p>
-        </div>
-      )}
     </div>
   );
 }

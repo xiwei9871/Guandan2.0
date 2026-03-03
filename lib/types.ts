@@ -53,6 +53,36 @@ export interface TributeState {
   toPlayer: string | null;
   cards: Card[];
   phase: 'giving' | 'returning';
+  mode?: 'double' | 'single' | 'inner';
+  exempt?: boolean;
+  giverOrder?: string[];
+  receiverOrder?: string[];
+  pendingGives?: Array<{
+    fromPlayerId: string;
+    toPlayerId?: string | null;
+    card?: Card | null;
+  }>;
+  resolvedGives?: Array<{
+    fromPlayerId: string;
+    toPlayerId?: string | null;
+    card: Card;
+  }>;
+  pendingReturns?: Array<{
+    fromPlayerId: string;
+    toPlayerId: string;
+  }>;
+  resolvedReturns?: Array<{
+    fromPlayerId: string;
+    toPlayerId: string;
+    card: Card;
+  }>;
+  revealedActions?: Array<{
+    kind: 'tribute' | 'return';
+    fromPlayerId: string;
+    toPlayerId?: string | null;
+    card: Card;
+  }>;
+  leadPlayerId?: string | null;
 }
 
 export interface PlayInfo {

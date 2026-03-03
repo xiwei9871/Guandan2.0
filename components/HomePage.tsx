@@ -4,7 +4,10 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { SOCKET_EVENTS } from '@/lib/constants';
-import { getOrCreatePlayerClientId } from '@/lib/clientIdentity';
+import {
+  getOrCreatePlayerClientId,
+  setStoredPlayerName,
+} from '@/lib/clientIdentity';
 
 export default function HomePage() {
   const [playerName, setPlayerName] = useState('');
@@ -47,7 +50,7 @@ export default function HomePage() {
         setIsLoading(false);
 
         if (response.success && response.roomId) {
-          localStorage.setItem('playerName', playerName);
+          setStoredPlayerName(playerName);
           router.push(`/room/${response.roomId}`);
         } else {
           setError(response.error || '创建房间失败');
@@ -85,7 +88,7 @@ export default function HomePage() {
         setIsLoading(false);
 
         if (response.success) {
-          localStorage.setItem('playerName', playerName);
+          setStoredPlayerName(playerName);
           router.push(`/room/${roomId}`);
         } else {
           setError(response.error || '加入房间失败');
