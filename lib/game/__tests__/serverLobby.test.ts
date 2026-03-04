@@ -239,4 +239,80 @@ describe('serverLobby runtime', () => {
       })
     ).toThrow('房间不存在');
   });
+  it('rejects a fifth player from joining a full room', () => {
+    const lobby = createLobby();
+
+    const { roomId } = lobby.createRoom({
+      roomId: 'ROOM08',
+      playerName: 'mq1',
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    lobby.joinRoom({ roomId, playerName: 'mq2', socketId: 'socket-2', clientId: 'client-mq2' });
+    lobby.joinRoom({ roomId, playerName: 'mq3', socketId: 'socket-3', clientId: 'client-mq3' });
+    lobby.joinRoom({ roomId, playerName: 'mq4', socketId: 'socket-4', clientId: 'client-mq4' });
+
+    expect(() =>
+      lobby.joinRoom({
+        roomId,
+        playerName: 'mq5',
+        socketId: 'socket-5',
+        clientId: 'client-mq5',
+      })
+    ).toThrow('房间已满');
+  });
+
+  it('rejects a new outsider once the game has started', () => {
+    const lobby = createLobby();
+
+    const { roomId, room } = lobby.createRoom({
+      roomId: 'ROOM09',
+      playerName: 'mq1',
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    lobby.joinRoom({ roomId, playerName: 'mq2', socketId: 'socket-2', clientId: 'client-mq2' });
+    room.status = 'playing';
+
+    expect(() =>
+      lobby.joinRoom({
+        roomId,
+        playerName: 'mq3',
+        socketId: 'socket-3',
+        clientId: 'client-mq3',
+      })
+    ).toThrow('房间已开始游戏');
+  });
+
+  it('allows a known player to rejoin an active room with the same client id', () => {
+    const lobby = createLobby();
+
+    const { roomId, room } = lobby.createRoom({
+      roomId: 'ROOM10',
+      playerName: 'mq1',
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    lobby.joinRoom({ roomId, playerName: 'mq2', socketId: 'socket-2', clientId: 'client-mq2' });
+    room.status = 'playing';
+
+    lobby.disconnectPlayer({
+      roomId,
+      socketId: 'socket-2',
+    });
+
+    const result = lobby.joinRoom({
+      roomId,
+      playerName: 'mq2',
+      socketId: 'socket-2b',
+      clientId: 'client-mq2',
+    });
+
+    expect(result.rejoined).toBe(true);
+    expect(result.player.id).toBe('socket-2b');
+    expect(lobby.getPlayers(roomId).map((player: any) => player.name)).toEqual(['mq1', 'mq2']);
+  });
 });
