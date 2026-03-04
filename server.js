@@ -3,6 +3,11 @@ const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
 const { getNetworkConfig } = require('./lib/runtime/networkConfig.runtime.js');
+const {
+  createRateLimiter,
+  validatePlayerName,
+  validateRoomId,
+} = require('./lib/runtime/socketGuards.runtime.js');
 const { detectCardType, canBeat } = require('./lib/game/cardChecker.runtime.js');
 const { isRoomOwner } = require('./lib/game/lobbyRules.runtime.js');
 const { createLobby } = require('./lib/game/serverLobby.runtime.js');
@@ -56,6 +61,10 @@ app.prepare().then(() => {
     reconnectGraceMs: parseDurationMs(process.env.RECONNECT_GRACE_MS, 30000),
     roomIdleTtlMs: parseDurationMs(process.env.ROOM_IDLE_TTL_MS, 15 * 60 * 1000),
   });
+  const roomEntryLimiter = createRateLimiter({
+    windowMs: parseDurationMs(process.env.RATE_LIMIT_WINDOW_MS, 10000),
+    max: parseDurationMs(process.env.RATE_LIMIT_MAX, 10),
+  });
   const { rooms, roomPlayers } = lobby;
 
   function normalizeRoomId(roomId) {
@@ -63,6 +72,13 @@ app.prepare().then(() => {
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '')
       .slice(0, 10);
+  }
+
+  function rejectRoomEntry(socket, callback, message) {
+    socket.emit('error', message);
+    if (callback && typeof callback === 'function') {
+      callback({ success: false, error: message });
+    }
   }
 
   function getCardsRemaining(player) {
@@ -251,6 +267,19 @@ app.prepare().then(() => {
     // Create room
     socket.on('room:create', ({ playerName, clientId }, callback) => {
       lobby.pruneExpiredRooms();
+      const rateLimitResult = roomEntryLimiter.consume(socket.id, 'room:create');
+      if (!rateLimitResult.allowed) {
+        rejectRoomEntry(socket, callback, '请求过于频繁，请稍后再试');
+        return;
+      }
+
+      const validatedPlayerName = validatePlayerName(playerName);
+      if (!validatedPlayerName.ok) {
+        rejectRoomEntry(socket, callback, validatedPlayerName.error);
+        return;
+      }
+
+      playerName = validatedPlayerName.value;
       const stableClientId = clientId || socket.id;
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const player = {
@@ -302,8 +331,27 @@ app.prepare().then(() => {
     // Join room
     socket.on('room:join', ({ roomId, playerName, clientId }, callback) => {
       lobby.pruneExpiredRooms();
+      const rateLimitResult = roomEntryLimiter.consume(socket.id, 'room:join');
+      if (!rateLimitResult.allowed) {
+        rejectRoomEntry(socket, callback, '请求过于频繁，请稍后再试');
+        return;
+      }
+
+      const validatedPlayerName = validatePlayerName(playerName);
+      if (!validatedPlayerName.ok) {
+        rejectRoomEntry(socket, callback, validatedPlayerName.error);
+        return;
+      }
+
+      const validatedRoomId = validateRoomId(roomId);
+      if (!validatedRoomId.ok) {
+        rejectRoomEntry(socket, callback, validatedRoomId.error);
+        return;
+      }
+
+      playerName = validatedPlayerName.value;
       const stableClientId = clientId || socket.id;
-      roomId = normalizeRoomId(roomId);
+      roomId = validatedRoomId.value;
       console.log(`[DEBUG] room:join event - Socket: ${socket.id}, Room: ${roomId}, Player: ${playerName}`);
       console.log(`[DEBUG] Existing rooms:`, Array.from(rooms.keys()));
       console.log(`[DEBUG] Socket data:`, socket.data);

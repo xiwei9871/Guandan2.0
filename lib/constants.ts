@@ -1,6 +1,10 @@
 export const DECK_SIZE = 108; // Two standard decks.
 export const HAND_SIZE = 27; // 27 cards per player.
 export const MAX_PLAYERS = 4;
+export const ROOM_ID_MAX_LENGTH = 10;
+export const PLAYER_NAME_MAX_LENGTH = 20;
+export const ROOM_ENTRY_RATE_LIMIT_WINDOW_MS = 10000;
+export const ROOM_ENTRY_RATE_LIMIT_MAX = 10;
 
 export const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'] as const;
 export const RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] as const;
