@@ -14,6 +14,7 @@ export default function HomePage() {
   const [roomId, setRoomId] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [createdRoomId, setCreatedRoomId] = useState('');
 
   const router = useRouter();
   const { socket, isConnected } = useSocket();
@@ -29,6 +30,7 @@ export default function HomePage() {
   const handleCreateRoom = (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setCreatedRoomId('');
 
     if (!playerName.trim()) {
       setError('请输入玩家名称');
@@ -50,6 +52,7 @@ export default function HomePage() {
         setIsLoading(false);
 
         if (response.success && response.roomId) {
+          setCreatedRoomId(response.roomId);
           setStoredPlayerName(playerName);
           router.push(`/room/${response.roomId}`);
         } else {
@@ -62,6 +65,7 @@ export default function HomePage() {
   const handleJoinRoom = (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setCreatedRoomId('');
 
     if (!playerName.trim()) {
       setError('请输入玩家名称');
@@ -149,6 +153,16 @@ export default function HomePage() {
               {isLoading ? '创建中...' : '创建房间'}
             </button>
           </form>
+
+          {createdRoomId && (
+            <div
+              data-testid="created-room-share"
+              className="mb-6 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700"
+            >
+              <p className="font-medium">房间已创建：{createdRoomId}</p>
+              <p className="mt-1">可分享链接：/room/{createdRoomId}</p>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="relative mb-6">

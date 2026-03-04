@@ -330,7 +330,12 @@ export default function GameRoom({ roomId }: GameRoomProps) {
         <div className="w-full max-w-md rounded-lg bg-white p-8 text-center shadow-xl">
           <div className="mb-4 text-6xl text-red-500">!</div>
           <h2 className="mb-2 text-2xl font-bold text-gray-800">出错了</h2>
-          <p className="mb-6 text-gray-600">{error}</p>
+          <p data-testid="room-join-error" className="mb-3 text-gray-700">
+            进入房间失败：{error}
+          </p>
+          <p data-testid="room-join-help" className="mb-6 text-sm text-gray-500">
+            房间可能不存在、已失效，或你与服务器的连接已经中断。
+          </p>
           <button
             onClick={() => router.push('/')}
             className="rounded-lg bg-blue-500 px-6 py-2 text-white transition hover:bg-blue-600"
@@ -376,6 +381,13 @@ export default function GameRoom({ roomId }: GameRoomProps) {
     <div className="flex h-screen flex-col overflow-hidden bg-[#e6ebee]">
       <div className="flex h-12 flex-shrink-0 items-center justify-between bg-white/90 px-4 shadow-sm backdrop-blur">
         <div className="flex items-center gap-3 text-sm text-slate-700">
+          <a
+            data-testid="room-invite-link"
+            href={`/room/${roomId}`}
+            className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
+          >
+            邀请链接 /room/{roomId}
+          </a>
           <h1 className="text-base font-bold text-slate-900">房间 {roomId}</h1>
           <p>{roomState.players.length}/4 玩家</p>
           <p>级牌 {roomState.currentLevel > 13 ? 'A' : roomState.currentLevel}</p>

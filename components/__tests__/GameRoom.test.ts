@@ -439,6 +439,65 @@ function renderGameRoom(
   return html;
 }
 
+function renderErroredGameRoom(error: string) {
+  const mockUseState = jest
+    .fn()
+    .mockImplementationOnce(() => [null, jest.fn()])
+    .mockImplementationOnce(() => [error, jest.fn()])
+    .mockImplementationOnce(() => [false, jest.fn()])
+    .mockImplementationOnce(() => [null, jest.fn()]);
+
+  jest.doMock('react', () => {
+    const actual = jest.requireActual('react');
+    return {
+      __esModule: true,
+      ...actual,
+      useState: mockUseState,
+      useEffect: jest.fn(),
+    };
+  });
+
+  jest.doMock('next/navigation', () => ({
+    useRouter: () => ({ push: mockPush }),
+  }));
+
+  jest.doMock('@/hooks/useSocket', () => ({
+    useSocket: () => ({ socket: null, isConnected: false }),
+  }));
+
+  jest.doMock('../game/PlayerCard', () => ({
+    __esModule: true,
+    default: () => 'PLAYER_CARD',
+  }));
+
+  jest.doMock('../game/HandCards', () => ({
+    __esModule: true,
+    default: () => 'HAND_CARDS',
+  }));
+
+  jest.doMock('../game/CenterPlayArea', () => ({
+    __esModule: true,
+    default: () => 'CENTER_PLAY_AREA',
+  }));
+
+  jest.doMock('../game/SettlementPanel', () => ({
+    __esModule: true,
+    default: () => 'SETTLEMENT_PANEL',
+  }));
+
+  let html = '';
+
+  jest.isolateModules(() => {
+    const React = require('react');
+    const { renderToStaticMarkup } = require('react-dom/server');
+    const GameRoom = require('../GameRoom').default;
+
+    html = renderToStaticMarkup(React.createElement(GameRoom, { roomId: 'ROOM42' }));
+  });
+
+  return html;
+}
+
 describe('GameRoom settlement view', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -610,6 +669,13 @@ describe('GameRoom settlement view', () => {
     expect(html).toContain('data-testid="integrated-table"');
   });
 
+  it('renders a room invite link based on the current room id', () => {
+    const html = renderGameRoom(waitingRoomState, 'p1');
+
+    expect(html).toContain('data-testid="room-invite-link"');
+    expect(html).toContain('/room/ROOM42');
+  });
+
   it('shows the waiting-ready copy only once', () => {
     const html = renderGameRoom(waitingRoomState, 'p1');
     const waitingReadyCount = (html.match(/等待玩家准备/g) || []).length;
@@ -695,5 +761,12 @@ describe('GameRoom settlement view', () => {
 
     expect(html).toContain('data-testid="tribute-status"');
     expect(html).toContain('data-testid="tribute-action-log"');
+  });
+
+  it('shows clearer room-unavailable copy when joining the room fails', () => {
+    const html = renderErroredGameRoom('房间不存在');
+
+    expect(html).toContain('data-testid="room-join-error"');
+    expect(html).toContain('data-testid="room-join-help"');
   });
 });
