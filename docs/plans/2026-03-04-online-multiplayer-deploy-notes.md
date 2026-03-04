@@ -80,6 +80,23 @@ location / {
 }
 ```
 
+## Ubuntu 手动部署补充
+
+如果你使用 Ubuntu 手动部署当前版本，建议固定一个项目目录，例如 `/srv/guandan/current`，并在该目录内完成 `.env`、构建产物和运行进程的管理。
+
+推荐顺序：
+
+```bash
+cp .env.example .env
+npm install
+npm run build
+npm start
+```
+
+在正式启动前，可以先运行 [scripts/ubuntu-deploy-check.sh](/C:/Users/42599/guandan_Game2.0/scripts/ubuntu-deploy-check.sh) 做一次自检；Nginx 站点配置建议从 [deploy/nginx/guandan.conf.example](/C:/Users/42599/guandan_Game2.0/deploy/nginx/guandan.conf.example) 起步，再按实际域名、证书和站点目录调整。
+
+完整的 Ubuntu 目录约定、Nginx 启用步骤、reload 命令和首轮联机烟雾测试见 [docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md](/C:/Users/42599/guandan_Game2.0/docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md)。
+
 ## 首次部署检查清单
 
 上线前至少确认以下项目：

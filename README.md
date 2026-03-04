@@ -52,6 +52,24 @@ npm run build
 npm start
 ```
 
+## Ubuntu 手动部署
+
+如果你准备把当前版本部署到 Ubuntu 单机服务器，建议按“项目目录 + `npm run build` + `npm start` + Nginx 反向代理”的方式落地。
+
+- 部署总览文档见 [docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md](/C:/Users/42599/guandan_Game2.0/docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md)
+- Ubuntu 自检脚本见 [scripts/ubuntu-deploy-check.sh](/C:/Users/42599/guandan_Game2.0/scripts/ubuntu-deploy-check.sh)
+- Nginx 模板见 [deploy/nginx/guandan.conf.example](/C:/Users/42599/guandan_Game2.0/deploy/nginx/guandan.conf.example)
+
+建议在服务器仓库目录内手动创建 `.env`，至少填写 `HOST`、`PORT`、`APP_ORIGIN` 和 `SOCKET_CORS_ORIGINS`，然后依次执行：
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+完成 Node 进程启动后，再把 Nginx 配置模板复制到站点配置中并 reload。更完整的目录约定、上线步骤和首轮烟雾验证流程见上面的 Ubuntu runbook。
+
 生产环境默认启用“同源 Socket”模式。也就是说，浏览器访问什么域名，Socket.IO 就回连同一个域名，不需要再把前端写死到 `localhost`。
 
 ## 联网房间部署
