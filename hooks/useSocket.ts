@@ -16,7 +16,7 @@ export function useSocket(roomId?: string) {
 
     const socketOptions = {
       autoConnect: true,
-      transports: ['websocket', 'polling'] as const,
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
