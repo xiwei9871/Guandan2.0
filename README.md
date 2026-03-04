@@ -1,340 +1,165 @@
-# 掼蛋在线游戏 (Guandan Online)
+# 掼蛋在线
 
-一个基于Next.js和Socket.io的4人局域网掼蛋对战游戏。
+一个基于 Next.js 15 与 Socket.IO 的四人实时掼蛋项目，重点覆盖本地联机、完整房间流程、统一牌桌 UI，以及带公共日志的手动进贡/还贡流程。
 
-## 项目特性
+![房间界面预览](docs/layout2.png)
 
-- ✅ 实时多人在线对战
-- ✅ 完整的掼蛋游戏规则
-- ✅ 响应式UI设计
-- ✅ WebSocket即时通信
-- ✅ 房间系统
-- ✅ 队伍协作
-- ✅ 手牌管理
-- ✅ 游戏状态同步
+## 项目简介
+
+这个仓库的目标不是只做一个“能出牌”的原型，而是把一局四人掼蛋从建房、入座、准备、开局、出牌、结算，到进贡/还贡与下一轮衔接，尽量做成一套连贯可验证的在线体验。
+
+当前实现以本地开发和局域网调试为主，服务端负责房间与规则状态，客户端负责房间页、手牌交互和实时同步展示。
+
+## 当前已实现能力
+
+- 四人房间流程：创建房间、加入房间、准备、房主开局、离房与房间状态同步
+- 稳定身份重连：通过 `clientId` 保持玩家身份，房主在页面跳转或短暂断线后仍可保留房主身份
+- 一体化牌桌界面：自己永远显示在下方，其余玩家相对映射到左、上、右三个座位
+- 实时出牌同步：支持出牌、不要、轮次推进、上轮出牌显示与剩余手牌计数
+- 结算与阶段切换：支持回合结束后的名次结算与下一轮衔接
+- 手动进贡流程：支持单贡、双贡、内贡、抗贡判断，以及公开的进贡/还贡动作日志
+- 规则与界面测试：核心规则、房间重连、进贡流程和主要房间组件都有 Jest 测试覆盖
 
 ## 技术栈
 
-- **前端框架**: Next.js 15 (App Router)
-- **UI样式**: Tailwind CSS
-- **类型系统**: TypeScript
-- **实时通信**: Socket.io
-- **状态管理**: React Hooks
-- **开发环境**: Node.js 18+
+- 前端：Next.js 15、React 18、Tailwind CSS
+- 实时通信：Socket.IO
+- 语言：TypeScript
+- 测试：Jest、Playwright
+- 运行方式：自定义 Node 服务启动 Next.js 与 Socket.IO
+
+## 游戏流程与当前规则重点
+
+### 房间流程
+
+1. 玩家输入昵称后可以创建房间或加入已有房间。
+2. 房间满四人后，所有玩家点击准备。
+3. 只有房主可以在全员准备后开始游戏。
+4. 游戏开始后系统发牌，牌桌进入统一的实时对局界面。
+
+### 对局体验
+
+- 手牌、座位信息和公共牌桌状态集中在同一个房间页内展示
+- 当前玩家的操作按钮会根据阶段切换为出牌、不要、进贡或还贡
+- 牌桌中央会持续展示当前阶段状态与公共动作信息
+
+### 进贡 / 还贡规则
+
+当前版本已把进贡逻辑做成服务端判定、客户端手动提交的流程：
+
+- 支持单贡、双贡、内贡三类流程
+- 抗贡会直接跳过进贡阶段
+- 进贡牌必须满足“手中最大合规牌”的限制
+- 红桃级牌不会被当作可进贡的最大牌
+- 还贡牌必须为 `10` 或以下
+- 所有进贡与还贡动作都会进入公共日志，房间内所有人都能看到
+
+更完整的规则背景可以参考 [docs/rules.md](docs/rules.md)。该文档目前仍有历史内容待整理，但规则测试已经覆盖当前实现的关键约束。
 
 ## 快速开始
 
 ### 环境要求
 
-- Node.js 18.0 或更高版本
-- npm 或 yarn 包管理器
-- 现代浏览器（Chrome、Firefox、Edge、Safari）
+- Node.js 18+
+- npm
 
-### 安装步骤
-
-1. **克隆项目**
-
-```bash
-git clone <repository-url>
-cd guandan_Game2.0
-```
-
-2. **安装依赖**
+### 安装依赖
 
 ```bash
 npm install
 ```
 
-3. **启动开发服务器**
+### 启动开发环境
 
 ```bash
 npm run dev
 ```
 
-4. **访问应用**
+开发模式会启动自定义 Node 服务，默认访问地址是：
 
-打开浏览器访问: [http://localhost:3000](http://localhost:3000)
+`http://localhost:3003`
 
-### 生产部署
+### 生产构建与启动
 
 ```bash
-# 构建生产版本
 npm run build
-
-# 启动生产服务器
 npm start
 ```
 
-## 项目结构
-
-```
-guandan_Game2.0/
-├── app/                      # Next.js App Router
-│   ├── api/socket/          # Socket.io API路由
-│   ├── layout.tsx           # 根布局
-│   ├── page.tsx             # 首页
-│   └── room/[roomId]/       # 游戏房间页面
-├── components/              # React组件
-│   ├── game/               # 游戏相关组件
-│   │   ├── HandCards.tsx   # 手牌显示组件
-│   │   └── PlayerCard.tsx  # 玩家卡片组件
-│   ├── GameRoom.tsx        # 游戏房间主组件
-│   └── HomePage.tsx        # 首页组件
-├── hooks/                   # 自定义React Hooks
-│   ├── useSocket.ts        # Socket.io连接Hook
-│   └── useCardSelection.ts # 卡片选择Hook
-├── lib/                     # 核心逻辑库
-│   ├── game/               # 游戏逻辑
-│   │   ├── cardChecker.ts  # 牌型检测
-│   │   ├── deck.ts         # 牌堆管理
-│   │   └── gameEngine.ts   # 游戏引擎
-│   ├── socket/             # Socket.io服务器
-│   │   └── server.ts       # Socket服务器实现
-│   ├── constants.ts        # 常量定义
-│   └── types.ts            # TypeScript类型定义
-├── docs/                    # 文档
-│   └── rules.md            # 游戏规则说明
-├── public/                  # 静态资源
-├── TESTING.md              # 测试计划
-├── BUGS.md                 # Bug报告
-└── README.md               # 项目说明
-```
-
-## 游戏玩法
-
-### 基本规则
-
-1. **玩家配置**
-   - 4名玩家，分为两队
-   - 红队：南、北
-   - 蓝队：东、西
-
-2. **游戏流程**
-   - 创建或加入房间
-   - 4人全部准备后开始游戏
-   - 系统自动发牌（每人27张）
-   - 按顺序出牌，先出完牌的一方获胜
-
-3. **牌型**
-   - 单张、对子、三张
-   - 三带一、三带二
-   - 顺子、连对
-   - 炸弹、王炸
-   - 同花顺
-
-详细规则请查看: [docs/rules.md](docs/rules.md)
-
-### 操作说明
-
-1. **准备游戏**
-   - 点击"准备"按钮
-   - 等待其他玩家准备
-   - 全部准备后点击"开始游戏"
-
-2. **选择手牌**
-   - 点击手牌进行选择
-   - 再次点击取消选择
-   - 选中卡片会上移显示
-
-3. **出牌**
-   - 选择要出的牌
-   - 点击"出牌"按钮
-   - 或点击"不要"跳过本轮
-
-4. **特殊牌**
-   - 级牌：当前等级的牌
-   - 逢人配：红桃级牌，可作任意牌使用
-
-## 开发指南
-
-### 添加新功能
-
-1. **添加新的牌型**
-   - 编辑 `lib/game/cardChecker.ts`
-   - 实现牌型检测逻辑
-   - 添加比较规则
-
-2. **修改UI组件**
-   - 组件位于 `components/` 目录
-   - 使用Tailwind CSS样式
-   - 遵循React最佳实践
-
-3. **扩展Socket事件**
-   - 编辑 `lib/constants.ts` 添加事件名
-   - 在 `lib/socket/server.ts` 实现服务端逻辑
-   - 在客户端使用 `useSocket` Hook处理事件
-
-### 代码规范
-
-- 使用TypeScript类型注解
-- 遵循ESLint规则
-- 组件使用函数式写法
-- 使用React Hooks管理状态
-- 适当的错误处理
-
-### 测试
+## 常用命令
 
 ```bash
-# 运行测试
+# 启动开发服务
+npm run dev
+
+# 运行单元/组件测试
 npm test
 
-# 运行测试并生成覆盖率报告
-npm test -- --coverage
+# 查看测试覆盖率
+npm run test:coverage
+
+# 运行 E2E 测试
+npm run test:e2e
+
+# 构建生产版本
+npm run build
 ```
 
-## 配置说明
+## 测试与验证
 
-### 环境变量
+当前仓库已经包含以下类型的验证：
 
-创建 `.env.local` 文件:
+- 规则测试：牌型判断、回合推进、进贡与还贡规则
+- 房间测试：房主判定、断线重连、房间生命周期
+- 组件测试：房间页、手牌区、座位卡片等核心 UI
+- 构建验证：Next.js 生产构建
 
-```env
-# Socket.io配置
-NODE_ENV=development
-PORT=3000
-SOCKET_PORT=3001
+最近一次本地验证包括：
 
-# 允许的跨域来源（生产环境）
-ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
+- `npm test`
+- `npm run build`
+
+如果你在修改房间流程、重连逻辑或进贡规则，建议至少重新执行这两条命令。
+
+## 目录结构
+
+```text
+app/
+  page.tsx                 首页入口
+  room/[roomId]/           房间页面路由
+
+components/
+  HomePage.tsx             首页创建/加入房间界面
+  GameRoom.tsx             房间与牌桌主界面
+  game/                    牌桌中心区、座位卡片、手牌区等组件
+
+hooks/
+  useSocket.ts             Socket.IO 连接与事件订阅
+
+lib/
+  constants.ts             共享常量与事件名
+  types.ts                 房间、玩家、进贡等共享类型
+  clientIdentity.ts        基于 sessionStorage 的稳定客户端身份
+  game/                    规则判定、房间生命周期、进贡运行时逻辑
+
+docs/
+  layout.png               历史界面示意
+  layout2.png              当前房间布局示意
+  plans/                   设计与实现计划记录
+
+server.js                  自定义 Next.js + Socket.IO 服务入口
 ```
 
-### Tailwind配置
+## 相关文档
 
-编辑 `tailwind.config.ts` 自定义样式:
+- [TESTING.md](TESTING.md)：历史测试记录与手工测试清单
+- [docs/plans](docs/plans)：设计文档、实现计划与迭代记录
+- [docs/rules.md](docs/rules.md)：规则说明草稿
 
-```typescript
-import type { Config } from 'tailwindcss'
+## 后续方向
 
-const config: Config = {
-  content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
-export default config
-```
+- 继续整理和统一中文文案，清理历史乱码残留
+- 补充更完整的 E2E 流程验证
+- 持续收敛服务端规则与客户端展示之间的状态表达
 
-## 常见问题
-
-### 1. Socket连接失败
-
-**问题**: 显示"未连接"状态
-
-**解决方案**:
-- 检查防火墙设置
-- 确认端口3000未被占用
-- 检查浏览器控制台错误信息
-
-### 2. 手牌不显示
-
-**问题**: 游戏开始后看不到手牌
-
-**解决方案**:
-- 确认4个玩家都已准备
-- 重新开始游戏
-- 检查浏览器控制台是否有错误
-
-### 3. 出牌失败
-
-**问题**: 点击出牌没有反应
-
-**解决方案**:
-- 确认是否轮到你出牌
-- 检查选中的牌是否符合规则
-- 尝试刷新页面重新连接
-
-## 性能优化
-
-### 已实现的优化
-
-- React组件懒加载
-- Socket.io连接池管理
-- 虚拟滚动（大列表）
-- 防抖和节流处理
-
-### 未来优化计划
-
-- [ ] Web Workers处理复杂计算
-- [ ] IndexedDB缓存游戏数据
-- [ ] PWA支持
-- [ ] 离线模式
-
-## 贡献指南
-
-欢迎提交Issue和Pull Request！
-
-### 提交Issue
-
-请在 [GitHub Issues](https://github.com/your-repo/issues) 提交问题，包含:
-- 问题描述
-- 复现步骤
-- 预期行为
-- 实际行为
-- 截图（如有）
-
-### 提交PR
-
-1. Fork项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启Pull Request
-
-## 测试状态
-
-当前版本: v1.0.0
-
-测试覆盖:
-- ✅ 单元测试: 游戏逻辑
-- ✅ 集成测试: Socket通信
-- ⏳ E2E测试: 多玩家流程
-- ⏳ 性能测试: 并发连接
-
-详细测试报告: [TESTING.md](TESTING.md)
-
-## 已知问题
-
-查看 [BUGS.md](BUGS.md) 获取已知问题和改进建议。
-
-## 许可证
-
-本项目采用 MIT 许可证。
-
-## 联系方式
-
-- 项目主页: [GitHub Repository](https://github.com/your-repo)
-- 问题反馈: [GitHub Issues](https://github.com/your-repo/issues)
-- 邮箱: your-email@example.com
-
-## 致谢
-
-- [Next.js](https://nextjs.org/) - React框架
-- [Socket.io](https://socket.io/) - 实时通信
-- [Tailwind CSS](https://tailwindcss.com/) - CSS框架
-- [TypeScript](https://www.typescriptlang.org/) - 类型系统
-
-## 更新日志
-
-### v1.0.0 (2026-02-26)
-- ✅ 实现基础游戏框架
-- ✅ 完成手牌UI
-- ✅ 集成Socket.io
-- ✅ 实现核心游戏逻辑
-- ✅ 添加测试文档
-
-### 未来计划
-- [ ] 进贡阶段实现
-- [ ] 游戏结算优化
-- [ ] 移动端适配
-- [ ] 音效和动画
-- [ ] 数据持久化
-- [ ] 排行榜系统
-
----
-
-**享受游戏！Good luck and have fun! 🎴**
+如果你只是想快速体验项目，按“安装依赖 -> `npm run dev` -> 打开 `http://localhost:3003`”这条路径就足够了。
