@@ -56,19 +56,78 @@ npm start
 
 如果你准备把当前版本部署到 Ubuntu 单机服务器，建议按“项目目录 + `npm run build` + `npm start` + Nginx 反向代理”的方式落地。
 
-- 部署总览文档见 [docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md](/C:/Users/42599/guandan_Game2.0/docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md)
-- Ubuntu 自检脚本见 [scripts/ubuntu-deploy-check.sh](/C:/Users/42599/guandan_Game2.0/scripts/ubuntu-deploy-check.sh)
-- Nginx 模板见 [deploy/nginx/guandan.conf.example](/C:/Users/42599/guandan_Game2.0/deploy/nginx/guandan.conf.example)
+### Ubuntu 服务器 requirements
 
-建议在服务器仓库目录内手动创建 `.env`，至少填写 `HOST`、`PORT`、`APP_ORIGIN` 和 `SOCKET_CORS_ORIGINS`，然后依次执行：
+- Ubuntu 22.04 LTS 或兼容版本
+- Node.js 18+
+- npm
+- Nginx
+- 一个可访问的公网域名，并且域名最终会指向这台服务器
+
+### Ubuntu 部署速查
+
+1. 准备项目目录，例如 `/srv/guandan/current`。
+2. 把仓库代码放进该目录；如果服务器上已经有仓库，则先 `git pull` 更新到最新提交。
+3. 在项目根目录创建 `.env`，可直接从 `.env.example` 复制：
+
+```bash
+cp .env.example .env
+```
+
+4. 至少确认以下变量已经按真实部署环境填写：
+
+- `HOST=0.0.0.0`
+- `PORT=3003`
+- `APP_ORIGIN=https://your-domain.example`
+- `SOCKET_CORS_ORIGINS=https://your-domain.example`
+
+5. 安装依赖并构建：
 
 ```bash
 npm install
 npm run build
+```
+
+6. 运行 Ubuntu 自检脚本，确认部署产物和关键变量都齐全：
+
+```bash
+bash scripts/ubuntu-deploy-check.sh
+```
+
+7. 启动 Node 服务。最直接的方式是：
+
+```bash
 npm start
 ```
 
-完成 Node 进程启动后，再把 Nginx 配置模板复制到站点配置中并 reload。更完整的目录约定、上线步骤和首轮烟雾验证流程见上面的 Ubuntu runbook。
+如果你想让进程脱离当前终端，可改用：
+
+```bash
+nohup npm start > ./guandan.log 2>&1 &
+```
+
+8. 复制并启用 Nginx 模板：
+
+```bash
+sudo cp deploy/nginx/guandan.conf.example /etc/nginx/sites-available/guandan.conf
+sudo ln -s /etc/nginx/sites-available/guandan.conf /etc/nginx/sites-enabled/guandan.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+9. 做首轮 smoke test：
+
+- 浏览器访问 `APP_ORIGIN` 对应域名，确认首页可打开
+- 创建房间，确认没有立即报错
+- 用第二个浏览器或设备打开邀请链接并成功入房
+- 确认房间实时状态会同步，说明 `/socket.io/` WebSocket 转发正常
+- 刷新任意一名玩家页面，确认能在 `RECONNECT_GRACE_MS` 时间内回到原座位
+
+- 部署总览文档见 [docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md](/C:/Users/42599/guandan_Game2.0/docs/plans/2026-03-04-ubuntu-manual-deploy-runbook.md)
+- Ubuntu 自检脚本见 [scripts/ubuntu-deploy-check.sh](/C:/Users/42599/guandan_Game2.0/scripts/ubuntu-deploy-check.sh)
+- Nginx 模板见 [deploy/nginx/guandan.conf.example](/C:/Users/42599/guandan_Game2.0/deploy/nginx/guandan.conf.example)
+
+更完整的目录约定、更新代码方式和问题排查说明见上面的 Ubuntu runbook。
 
 生产环境默认启用“同源 Socket”模式。也就是说，浏览器访问什么域名，Socket.IO 就回连同一个域名，不需要再把前端写死到 `localhost`。
 
