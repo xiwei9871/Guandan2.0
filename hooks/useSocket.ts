@@ -3,26 +3,28 @@
 import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { SOCKET_EVENTS } from '@/lib/constants';
+import { getNetworkConfig } from '@/lib/runtime/networkConfig';
 
 export function useSocket(roomId?: string) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Connect to the same host and port
-    const url = typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:3003`
-      : 'http://localhost:3003';
+    const { clientSocketUrl } = getNetworkConfig();
 
-    console.log('Connecting to Socket.io at:', url);
+    console.log('Connecting to Socket.io at:', clientSocketUrl || 'same-origin');
 
-    const socketInstance = io(url, {
+    const socketOptions = {
       autoConnect: true,
-      transports: ['websocket', 'polling'],
+      transports: ['websocket', 'polling'] as const,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
-    });
+    };
+
+    const socketInstance = clientSocketUrl
+      ? io(clientSocketUrl, socketOptions)
+      : io(socketOptions);
 
     socketInstance.on('connect', () => {
       console.log('✅ Connected to server, socket ID:', socketInstance.id);

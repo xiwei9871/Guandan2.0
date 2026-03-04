@@ -2,6 +2,7 @@ const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
+const { getNetworkConfig } = require('./lib/runtime/networkConfig.runtime.js');
 const { detectCardType, canBeat } = require('./lib/game/cardChecker.runtime.js');
 const { isRoomOwner } = require('./lib/game/lobbyRules.runtime.js');
 const { createLobby } = require('./lib/game/serverLobby.runtime.js');
@@ -16,9 +17,10 @@ const {
   applyReturnTribute,
 } = require('./lib/game/serverTribute.runtime.js');
 
+const networkConfig = getNetworkConfig();
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
-const port = 3003;
+const hostname = networkConfig.host;
+const port = networkConfig.port;
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
@@ -38,7 +40,7 @@ app.prepare().then(() => {
   // Initialize Socket.io
   const io = new Server(httpServer, {
     cors: {
-      origin: '*',
+      origin: networkConfig.socketCorsOrigins.length > 0 ? networkConfig.socketCorsOrigins : true,
       methods: ['GET', 'POST'],
     },
     transports: ['websocket', 'polling'],
