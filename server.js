@@ -22,6 +22,11 @@ const dev = process.env.NODE_ENV !== 'production';
 const hostname = networkConfig.host;
 const port = networkConfig.port;
 
+function parseDurationMs(value, fallback) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
@@ -47,7 +52,10 @@ app.prepare().then(() => {
   });
 
   // Socket.io logic
-  const lobby = createLobby();
+  const lobby = createLobby({
+    reconnectGraceMs: parseDurationMs(process.env.RECONNECT_GRACE_MS, 30000),
+    roomIdleTtlMs: parseDurationMs(process.env.ROOM_IDLE_TTL_MS, 15 * 60 * 1000),
+  });
   const { rooms, roomPlayers } = lobby;
 
   function normalizeRoomId(roomId) {
@@ -242,6 +250,7 @@ app.prepare().then(() => {
 
     // Create room
     socket.on('room:create', ({ playerName, clientId }, callback) => {
+      lobby.pruneExpiredRooms();
       const stableClientId = clientId || socket.id;
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const player = {
@@ -292,6 +301,7 @@ app.prepare().then(() => {
 
     // Join room
     socket.on('room:join', ({ roomId, playerName, clientId }, callback) => {
+      lobby.pruneExpiredRooms();
       const stableClientId = clientId || socket.id;
       roomId = normalizeRoomId(roomId);
       console.log(`[DEBUG] room:join event - Socket: ${socket.id}, Room: ${roomId}, Player: ${playerName}`);
@@ -932,6 +942,7 @@ app.prepare().then(() => {
     });
 
     function handleLeave(socket, reason) {
+      lobby.pruneExpiredRooms();
       const roomId = socket.data.roomId;
       const player = socket.data.player;
 

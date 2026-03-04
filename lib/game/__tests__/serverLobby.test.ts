@@ -132,4 +132,111 @@ describe('serverLobby runtime', () => {
     expect(lobby.getRoom(roomId).ownerId).toBe('client-mq2');
     expect(lobby.getPlayers(roomId).map((player: any) => player.name)).toEqual(['mq2']);
   });
+
+  it('removes an empty room as soon as the last player truly leaves', () => {
+    const lobby = createLobby();
+
+    const { roomId } = lobby.createRoom({
+      roomId: 'ROOM04',
+      playerName: 'mq1',
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    lobby.leavePlayer({
+      roomId,
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    expect(lobby.getRoom(roomId)).toBeNull();
+    expect(lobby.getPlayers(roomId)).toEqual([]);
+  });
+
+  it('expires waiting rooms after the configured idle ttl', () => {
+    let nowValue = 1000;
+    const lobby = createLobby({
+      now: () => nowValue,
+      roomIdleTtlMs: 60000,
+    });
+
+    const { roomId } = lobby.createRoom({
+      roomId: 'ROOM05',
+      playerName: 'mq1',
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    nowValue += 60001;
+    lobby.pruneExpiredRooms();
+
+    expect(lobby.getRoom(roomId)).toBeNull();
+    expect(() =>
+      lobby.joinRoom({
+        roomId,
+        playerName: 'mq2',
+        socketId: 'socket-2',
+        clientId: 'client-mq2',
+      })
+    ).toThrow('房间不存在');
+  });
+
+  it('drops disconnected players after the reconnect grace expires', () => {
+    let nowValue = 2000;
+    const lobby = createLobby({
+      now: () => nowValue,
+      reconnectGraceMs: 30000,
+      roomIdleTtlMs: 120000,
+    });
+
+    const { roomId } = lobby.createRoom({
+      roomId: 'ROOM06',
+      playerName: 'mq1',
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    lobby.joinRoom({
+      roomId,
+      playerName: 'mq2',
+      socketId: 'socket-2',
+      clientId: 'client-mq2',
+    });
+
+    lobby.disconnectPlayer({
+      roomId,
+      socketId: 'socket-2',
+    });
+
+    nowValue += 30001;
+    lobby.pruneExpiredPlayers(roomId);
+
+    expect(lobby.getPlayers(roomId).map((player: any) => player.name)).toEqual(['mq1']);
+  });
+
+  it('rejects joins into a room that has already expired', () => {
+    let nowValue = 5000;
+    const lobby = createLobby({
+      now: () => nowValue,
+      roomIdleTtlMs: 1000,
+    });
+
+    const { roomId } = lobby.createRoom({
+      roomId: 'ROOM07',
+      playerName: 'mq1',
+      socketId: 'socket-1',
+      clientId: 'client-mq1',
+    });
+
+    nowValue += 1001;
+
+    expect(() =>
+      lobby.joinRoom({
+        roomId,
+        playerName: 'mq2',
+        socketId: 'socket-2',
+        clientId: 'client-mq2',
+      })
+    ).toThrow('房间不存在');
+  });
 });
